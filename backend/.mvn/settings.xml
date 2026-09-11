@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 项目级 Maven 配置（仅对本项目生效）
+     1. 本地仓库放在工作区内（.mvn-repo，已 gitignore），避免沙箱/权限问题；
+     2. 使用阿里云镜像下载依赖。 -->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+    <localRepository>D:/Code/jly/.mvn-repo</localRepository>
+
+    <mirrors>
+        <mirror>
+            <id>aliyun</id>
+            <name>Aliyun Repository</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+            <mirrorOf>central</mirrorOf>
+        </mirror>
+    </mirrors>
+</settings>

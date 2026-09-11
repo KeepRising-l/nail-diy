@@ -1,0 +1,22 @@
+# Java
+target/
+*.class
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.idea/
+.vscode/
+
+# 运行时上传文件（保留目录结构）
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# 环境配置（含密钥时不入库）
+*.local
+.env
+
+# 独立 git 仓库的工作流文档，单独管理
+Workflow/

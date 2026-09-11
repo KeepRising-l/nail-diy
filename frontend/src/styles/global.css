@@ -1,0 +1,153 @@
+/* =============================================================
+   全局基础样式 + Element Plus 品牌主题覆盖（Nail DIY 极简风）
+   ============================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-background);
+  color: var(--color-foreground);
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+h1, h2, h3, .font-heading { font-family: var(--font-heading); margin: 0; }
+
+a { color: inherit; text-decoration: none; }
+button { cursor: pointer; font-family: inherit; }
+img { display: block; max-width: 100%; }
+
+/* ---------- 通用容器（更宽一点，居中留白）---------- */
+.container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--space-xl);
+}
+
+/* ---------- 通用卡片（极简：无边框感、白底、柔和圆角）---------- */
+.el-card {
+  background: var(--color-card);
+  border: none !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: none;
+  transition: box-shadow .25s ease, transform .25s ease;
+}
+
+.hoverable:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* ---------- 章节 pill 标签（参考站的 CHAPTER 风格）---------- */
+.eyebrow-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-card);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  font-family: var(--font-ui);
+  text-transform: uppercase;
+}
+
+/* ---------- 页脚 ---------- */
+.page-footer {
+  color: var(--color-muted-foreground);
+  background: transparent;
+  border-top: 1px solid var(--color-border);
+  padding: var(--space-xl) 0;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+}
+
+/* ---------- 辅助 ---------- */
+.text-muted { color: var(--color-muted-foreground); }
+.text-primary { color: var(--color-primary); }
+.text-accent { color: var(--color-accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* =============================================================
+   Element Plus 品牌主题覆盖（玫粉极简）
+   ============================================================= */
+:root {
+  --el-color-primary: #E53E8C;
+  --el-color-primary-light-3: #EC68A5;
+  --el-color-primary-light-5: #F18EBC;
+  --el-color-primary-light-7: #F6B4D3;
+  --el-color-primary-light-8: #F9C7DE;
+  --el-color-primary-light-9: #FCE5EF;
+  --el-color-primary-dark-2: #C72878;
+  --el-color-success: #5E8B6A;
+  --el-color-warning: #D99A57;
+  --el-color-danger: #C0392B;
+  --el-color-info: #7D7874;
+  --el-text-color-primary: #1F1B1A;
+  --el-text-color-regular: #3A3533;
+  --el-text-color-secondary: #7D7874;
+  --el-border-color: #E4DED4;
+  --el-border-color-light: #EDE7DC;
+  --el-border-color-lighter: #F1ECE3;
+  --el-fill-color-light: #F5F0E8;
+  --el-fill-color-blank: #FFFFFF;
+  --el-border-radius-base: 12px;
+  --el-border-radius-small: 8px;
+  --el-border-radius-round: 999px;
+}
+
+/* Element Plus 按钮更极简 */
+.el-button {
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+.el-button--primary {
+  box-shadow: 0 2px 8px rgba(229, 62, 140, 0.18);
+}
+.el-button--text {
+  color: var(--color-foreground);
+}
+.el-button--text:hover {
+  color: var(--color-primary);
+}
+
+/* Element Plus tabs 极简下划线 */
+.el-tabs__item {
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+.el-tabs__active-bar {
+  background-color: var(--color-primary) !important;
+}
+.el-tabs__item.is-active {
+  color: var(--color-primary) !important;
+}
+
+/* 移除卡片头的边框感 */
+.el-card__header {
+  border-bottom: 1px solid var(--color-border) !important;
+  padding: var(--space-lg) var(--space-lg) !important;
+}
+.el-card__body {
+  padding: var(--space-lg) !important;
+}

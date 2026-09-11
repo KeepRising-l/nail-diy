@@ -1,0 +1,63 @@
+/* =============================================================
+   Design Tokens — Nail DIY 极简配色
+   浅暖奶油底 / 深炭黑字 / 玫粉点缀
+   无多余装饰，大留白，编辑感
+   ============================================================= */
+:root {
+  /* 颜色 — 极简配色 */
+  --color-primary: #E53E8C;           /* 玫粉 — 点缀用（Logo DIY / 小点 / 标签底 / 指示圈） */
+  --color-primary-light-5: #F0A1C8;   /* 浅玫粉边框态 */
+  --color-primary-light-9: #FCE8F2;   /* 极浅玫粉背景态 */
+  --color-on-primary: #FFFFFF;
+  --color-secondary: #F4C8DC;         /* 浅粉 */
+  --color-on-secondary: #2A1F24;
+  --color-accent: #C72878;            /* 深玫粉（hover/链接） */
+  --color-on-accent: #FFFFFF;
+
+  /* 深炭黑 — 主操作按钮底色（注册 / CTA / 保存设计 等大按钮） */
+  --color-solid: #1F1B1A;             /* 深炭黑主按钮底 */
+  --color-solid-hover: #352F2D;       /* 深炭黑 hover（略浅 2°） */
+  --color-solid-shadow: rgba(31, 27, 26, 0.28);
+  --color-on-solid: #FFFFFF;          /* 主按钮上的文字 */
+
+  --color-background: #F0EBE3;        /* 浅暖奶油（比之前更浅） */
+  --color-foreground: #1F1B1A;        /* 深炭黑（近黑） */
+  --color-card: #FFFFFF;
+  --color-card-foreground: #1F1B1A;
+  --color-muted: #E9E3D9;             /* 副卡片/画布底（略深于背景） */
+  --color-muted-foreground: #8A8480;
+  --color-border: #E4DED4;            /* 极淡边框，几乎不可见 */
+  --color-destructive: #C0392B;
+  --color-on-destructive: #FFFFFF;
+  --color-ring: #E53E8C;
+
+  /* 画布色（设计预览区米色） */
+  --color-canvas: #E8DFD0;
+  --color-canvas-deep: #D9CEBA;
+
+  /* 间距（8px 节奏，更克制） */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 36px;
+  --space-2xl: 56px;
+  --space-3xl: 80px;
+
+  /* 阴影（极淡、只有悬浮时才出现） */
+  --shadow-sm: 0 1px 2px rgba(31, 27, 26, 0.04);
+  --shadow-md: 0 4px 16px rgba(31, 27, 26, 0.06);
+  --shadow-lg: 0 12px 32px rgba(31, 27, 26, 0.08);
+  --shadow-xl: 0 24px 56px rgba(31, 27, 26, 0.10);
+
+  /* 圆角（偏大，胶囊感） */
+  --radius-sm: 10px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+  --radius-full: 999px;
+
+  /* 字体 */
+  --font-heading: 'Playfair Display', 'PingFang SC', serif;
+  --font-body: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-ui: 'Inter', 'PingFang SC', sans-serif;  /* UI 导航/按钮 无衬线 */
+}

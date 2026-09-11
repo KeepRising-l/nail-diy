@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 项目级全局 settings：置空以屏蔽本机全局 settings 中的内网仓库（jfrog）配置 -->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+</settings>
