@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * 素材业务：商家端增删改查 + 顾客端上架素材浏览
+ * 素材业务：运营端增删改查/审核/批量上下架 + 顾客端上架素材浏览 + UGC 贴纸上传
  */
 @Service
 @RequiredArgsConstructor
@@ -29,11 +29,13 @@ public class MaterialService {
     private final MaterialMapper materialMapper;
     private final DesignMapper designMapper;
 
-    /** 商家端：分页列表（可按类型/状态/名称关键字筛选） */
-    public PageResult<Material> page(String type, Integer status, String keyword, long page, long size) {
+    /** 运营端：分页列表（可按类型/状态/审核状态/名称关键字筛选） */
+    public PageResult<Material> page(String type, Integer status, String auditStatus,
+                                     String keyword, long page, long size) {
         LambdaQueryWrapper<Material> wrapper = new LambdaQueryWrapper<Material>()
                 .eq(StrUtil.isNotBlank(type), Material::getType, type)
                 .eq(status != null, Material::getStatus, status)
+                .eq(StrUtil.isNotBlank(auditStatus), Material::getAuditStatus, auditStatus)
                 .like(StrUtil.isNotBlank(keyword), Material::getName, keyword)
                 .orderByAsc(Material::getSort)
                 .orderByDesc(Material::getId);
@@ -41,17 +43,15 @@ public class MaterialService {
         return PageResult.of(result.getTotal(), result.getRecords());
     }
 
-    /** 新增素材（按类型做业务校验） */
+    /** 新增素材（按类型做业务校验；同类型下 code 唯一） */
     public void create(MaterialRequest request) {
         validateByType(request);
+        checkCodeUnique(null, request.getType(), request.getCode());
         Material material = new Material();
-        material.setType(request.getType());
-        material.setName(request.getName());
-        material.setImageUrl(StrUtil.nullToEmpty(request.getImageUrl()));
-        material.setColorCode(StrUtil.nullToEmpty(request.getColorCode()));
-        material.setCategory(StrUtil.nullToEmpty(request.getCategory()));
-        material.setSort(request.getSort() == null ? 0 : request.getSort());
-        material.setStatus(request.getStatus() == null ? 1 : request.getStatus());
+        applyRequest(material, request);
+        material.setSource(Material.SOURCE_PLATFORM);
+        material.setAuditStatus(Material.AUDIT_APPROVED);
+        material.setHeat(0);
         materialMapper.insert(material);
     }
 
@@ -59,24 +59,15 @@ public class MaterialService {
     public void update(Long id, MaterialRequest request) {
         Material material = getById(id);
         validateByType(request);
-        material.setType(request.getType());
-        material.setName(request.getName());
-        material.setImageUrl(StrUtil.nullToEmpty(request.getImageUrl()));
-        material.setColorCode(StrUtil.nullToEmpty(request.getColorCode()));
-        material.setCategory(StrUtil.nullToEmpty(request.getCategory()));
-        if (request.getSort() != null) {
-            material.setSort(request.getSort());
-        }
-        if (request.getStatus() != null) {
-            material.setStatus(request.getStatus());
-        }
+        checkCodeUnique(id, request.getType(), request.getCode());
+        applyRequest(material, request);
         materialMapper.updateById(material);
     }
 
     /** 删除素材：被设计引用时禁止删除，提示下架 */
     public void delete(Long id) {
         Material material = getById(id);
-        // 设计参数 JSON 中包含该素材 id 即视为被引用（change-05 定义 params 结构后可精确化）
+        // 设计参数 JSON 中包含该素材 id 即视为被引用
         Long refCount = designMapper.selectCount(new LambdaQueryWrapper<Design>()
                 .apply("params LIKE CONCAT('%', {0}, '%')", material.getId()));
         if (refCount != null && refCount > 0) {
@@ -85,27 +76,149 @@ public class MaterialService {
         materialMapper.deleteById(id);
     }
 
-    /** 顾客端：仅上架素材，按排序号升序（供设计器分类浏览，可按图案分类筛选） */
-    public List<Material> listOnSale(String type, String category) {
+    /** 批量上下架 */
+    public void batchUpdateStatus(List<Long> ids, Integer status) {
+        if (ids == null || ids.isEmpty()) {
+            throw new BusinessException("请选择要操作的素材");
+        }
+        if (status == null || (status != 0 && status != 1)) {
+            throw new BusinessException("状态值不合法");
+        }
+        for (Long id : ids) {
+            Material material = getById(id);
+            material.setStatus(status);
+            materialMapper.updateById(material);
+        }
+    }
+
+    /** UGC 素材审核：通过则上架可见，驳回则记录状态 */
+    public void audit(Long id, boolean approved) {
+        Material material = getById(id);
+        if (!Material.AUDIT_PENDING.equals(material.getAuditStatus())) {
+            throw new BusinessException("该素材不在待审核状态");
+        }
+        material.setAuditStatus(approved ? Material.AUDIT_APPROVED : Material.AUDIT_REJECTED);
+        materialMapper.updateById(material);
+    }
+
+    /** 顾客端：UGC 贴纸上传（透明底 PNG，进入待审核，审核通过后全员可见） */
+    public Material createSticker(Long userId, String name, String imageUrl) {
+        if (StrUtil.isBlank(imageUrl)) {
+            throw new BusinessException("贴纸图片不能为空");
+        }
+        Material material = new Material();
+        material.setType(Material.TYPE_STICKER);
+        material.setName(StrUtil.isBlank(name) ? "我的贴纸" : name.trim());
+        material.setImageUrl(imageUrl);
+        material.setSource(Material.SOURCE_UGC);
+        material.setCreatorId(userId);
+        material.setAuditStatus(Material.AUDIT_PENDING);
+        material.setHeat(0);
+        material.setSort(0);
+        material.setStatus(1);
+        materialMapper.insert(material);
+        return material;
+    }
+
+    /** 顾客端：上架且审核通过的素材（按排序号升序；支持类型/分类/标签/关键字筛选） */
+    public List<Material> listOnSale(String type, String category, String tag, String keyword) {
         return materialMapper.selectList(new LambdaQueryWrapper<Material>()
                 .eq(StrUtil.isNotBlank(type), Material::getType, type)
                 .eq(StrUtil.isNotBlank(category), Material::getCategory, category)
+                .like(StrUtil.isNotBlank(tag), Material::getTags, tag)
+                .like(StrUtil.isNotBlank(keyword), Material::getName, keyword)
                 .eq(Material::getStatus, 1)
+                .eq(Material::getAuditStatus, Material.AUDIT_APPROVED)
                 .orderByAsc(Material::getSort)
                 .orderByAsc(Material::getId));
     }
 
-    /** 按类型做业务校验：色卡必须合法颜色代码且免图，甲型/图案必须带图 */
+    /** 素材热度排行（统计看板用，可按类型过滤） */
+    public List<Material> hotRank(String type, int limit) {
+        int size = Math.max(1, Math.min(limit, 50));
+        return materialMapper.selectList(new LambdaQueryWrapper<Material>()
+                .eq(StrUtil.isNotBlank(type), Material::getType, type)
+                .eq(Material::getStatus, 1)
+                .orderByDesc(Material::getHeat)
+                .orderByDesc(Material::getId)
+                .last("LIMIT " + size));
+    }
+
+    /** 热度 +1（设计保存/下单时按引用素材调用） */
+    public void increaseHeat(Long materialId) {
+        if (materialId == null) {
+            return;
+        }
+        Material material = materialMapper.selectById(materialId);
+        if (material != null) {
+            material.setHeat((material.getHeat() == null ? 0 : material.getHeat()) + 1);
+            materialMapper.updateById(material);
+        }
+    }
+
+    /** 按类型做业务校验：色卡必须合法颜色代码；代码注册素材必须带 code；图片素材必须带图 */
     private void validateByType(MaterialRequest request) {
-        if (Material.TYPE_COLOR.equals(request.getType())) {
+        String type = request.getType();
+        if (Material.TYPE_COLOR.equals(type)) {
             if (StrUtil.isBlank(request.getColorCode())
                     || !request.getColorCode().matches(COLOR_CODE_REGEX)) {
                 throw new BusinessException("色卡必须填写正确的颜色代码（格式 #RRGGBB）");
             }
-        } else {
-            if (StrUtil.isBlank(request.getImageUrl())) {
-                throw new BusinessException("甲型/图案素材必须上传图片");
+            return;
+        }
+        // 甲型/参数化款式为代码注册素材，code 必填、无需图片
+        if (Material.TYPE_SHAPE.equals(type) || Material.TYPE_PATTERN_STYLE.equals(type)) {
+            if (StrUtil.isBlank(request.getCode())) {
+                throw new BusinessException("甲型/参数化款式必须填写代码标识（绑定前端渲染器）");
             }
+            return;
+        }
+        // 装饰件：矢量款填 code，立体款传图，二者至少其一
+        if (Material.TYPE_DECOR.equals(type)) {
+            if (StrUtil.isBlank(request.getCode()) && StrUtil.isBlank(request.getImageUrl())) {
+                throw new BusinessException("装饰件需填写代码标识（矢量款）或上传图片（立体款）");
+            }
+            return;
+        }
+        // 贴图/贴纸必须带图
+        if (StrUtil.isBlank(request.getImageUrl())) {
+            throw new BusinessException("贴图/贴纸素材必须上传图片");
+        }
+    }
+
+    /** 同类型下 code 唯一（code 为空则不校验） */
+    private void checkCodeUnique(Long excludeId, String type, String code) {
+        if (StrUtil.isBlank(code)) {
+            return;
+        }
+        Long count = materialMapper.selectCount(new LambdaQueryWrapper<Material>()
+                .eq(Material::getType, type)
+                .eq(Material::getCode, code)
+                .ne(excludeId != null, Material::getId, excludeId));
+        if (count != null && count > 0) {
+            throw new BusinessException("该类型下代码标识 " + code + " 已存在");
+        }
+    }
+
+    /** 请求字段写入实体（新建/编辑共用） */
+    private void applyRequest(Material material, MaterialRequest request) {
+        material.setType(request.getType());
+        material.setCode(StrUtil.nullToEmpty(request.getCode()).trim());
+        material.setName(request.getName());
+        material.setImageUrl(StrUtil.nullToEmpty(request.getImageUrl()));
+        material.setColorCode(StrUtil.nullToEmpty(request.getColorCode()));
+        material.setCategory(StrUtil.nullToEmpty(request.getCategory()));
+        material.setTags(StrUtil.nullToEmpty(request.getTags()));
+        material.setAttrs(StrUtil.isBlank(request.getAttrs()) ? null : request.getAttrs());
+        if (request.getSort() != null) {
+            material.setSort(request.getSort());
+        } else if (material.getSort() == null) {
+            material.setSort(0);
+        }
+        if (request.getStatus() != null) {
+            material.setStatus(request.getStatus());
+        } else if (material.getStatus() == null) {
+            material.setStatus(1);
         }
     }
 

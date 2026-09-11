@@ -612,7 +612,7 @@ function defaultFinger() {
 const shapes = ref([])
 const colors = ref([])
 const patterns = ref([])
-const CATEGORY_LABELS = { BASIC: '基础', FRENCH: '法式', GRADIENT: '渐变', NATURE: '自然', GEO: '几何', SHINE: '闪钻' }
+const CATEGORY_LABELS = { BASIC: '基础', FRENCH: '法式', GRADIENT: '渐变', NATURE: '自然', GEO: '几何', SHINE: '闪钻', CUTE: '可爱' }
 function categoryLabel(v) { return CATEGORY_LABELS[v] || v }
 // 图案分类 chips 按实际素材动态生成，避免出现永远为空的死筛选
 const patternCats = computed(() => {
@@ -631,7 +631,7 @@ async function loadMaterials() {
     const [s, c, p] = await Promise.all([
       request.get('/materials', { params: { type: 'SHAPE' } }),
       request.get('/materials', { params: { type: 'COLOR' } }),
-      request.get('/materials', { params: { type: 'PATTERN' } })
+      request.get('/materials', { params: { type: 'PATTERN_IMG' } })
     ])
     shapes.value = s.data || []
     colors.value = c.data || []
@@ -649,16 +649,17 @@ const patternCategory = ref('ALL')
 const colorCategory = ref('ALL')
 const COLOR_CATS = [
   { value: 'ALL',     label: '全部' },
-  { value: 'RED',     label: '红橙' },
+  { value: 'NUDE',    label: '裸粉' },
   { value: 'PINK',    label: '粉' },
-  { value: 'PURPLE',  label: '紫' },
-  { value: 'NUDE',    label: '裸色' },
-  { value: 'BROWN',   label: '棕咖' },
-  { value: 'GOLD',    label: '金银' },
+  { value: 'RED',     label: '红橙' },
+  { value: 'YELLOW',  label: '黄' },
   { value: 'GREEN',   label: '绿' },
+  { value: 'TEAL',    label: '蓝绿' },
   { value: 'BLUE',    label: '蓝' },
-  { value: 'MONO',    label: '黑白灰' },
-  { value: 'SPECIAL', label: '特殊' }
+  { value: 'PURPLE',  label: '紫' },
+  { value: 'SILVER',  label: '银调' },
+  { value: 'DARK',    label: '黑' },
+  { value: 'GLITTER', label: '碎钻' }
 ]
 const filteredColors = computed(() => colorCategory.value === 'ALL'
   ? colors.value

@@ -51,6 +51,7 @@ public class DesignService {
         design.setPreviewUrl(StrUtil.nullToEmpty(request.getPreviewUrl()));
         design.setPrice(STANDARD_PRICE);
         designMapper.insert(design);
+        increaseMaterialHeat(request.getParams());
         return design.getId();
     }
 
@@ -136,22 +137,67 @@ public class DesignService {
         checkPatterns(obj.getJSONArray("patternIds"));
     }
 
-    /** 图案 id 列表逐个校验（可为空） */
+    /** 贴图 id 列表逐个校验（可为空；接受贴图/贴纸两种类型） */
     private void checkPatterns(JSONArray patternIds) {
         if (patternIds == null) {
             return;
         }
         for (Object pid : patternIds) {
-            checkMaterial(Long.valueOf(pid.toString()), Material.TYPE_PATTERN);
+            checkMaterial(Long.valueOf(pid.toString()), Material.TYPE_PATTERN_IMG, Material.TYPE_STICKER);
         }
     }
 
-    /** 素材必须存在、上架且类型匹配 */
-    private void checkMaterial(Long materialId, String expectType) {
+    /** 素材必须存在、上架、审核通过且类型匹配（可传多个可接受类型） */
+    private void checkMaterial(Long materialId, String... expectTypes) {
         Material material = materialMapper.selectById(materialId);
-        if (material == null || material.getStatus() == null || material.getStatus() != 1
-                || !expectType.equals(material.getType())) {
+        boolean typeMatch = material != null
+                && java.util.Arrays.asList(expectTypes).contains(material.getType());
+        if (!typeMatch || material.getStatus() == null || material.getStatus() != 1
+                || !Material.AUDIT_APPROVED.equals(material.getAuditStatus())) {
             throw new BusinessException("所选素材已下架或不存在，请重新选择");
+        }
+    }
+
+    /** 统计设计引用的素材 id（shapeId/colorId/patternIds，五指与单甲结构兼容） */
+    private java.util.Set<Long> collectMaterialIds(String params) {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        JSONObject obj = JSONUtil.parseObj(params);
+        JSONArray fingers = obj.getJSONArray("fingers");
+        java.util.List<JSONObject> nodes = new java.util.ArrayList<>();
+        if (fingers != null) {
+            for (Object item : fingers) {
+                if (item instanceof JSONObject) {
+                    nodes.add((JSONObject) item);
+                }
+            }
+        } else {
+            nodes.add(obj);
+        }
+        for (JSONObject node : nodes) {
+            if (node.getLong("shapeId") != null) {
+                ids.add(node.getLong("shapeId"));
+            }
+            if (node.getLong("colorId") != null) {
+                ids.add(node.getLong("colorId"));
+            }
+            JSONArray patternIds = node.getJSONArray("patternIds");
+            if (patternIds != null) {
+                for (Object pid : patternIds) {
+                    ids.add(Long.valueOf(pid.toString()));
+                }
+            }
+        }
+        return ids;
+    }
+
+    /** 引用素材热度 +1（保存设计时调用，失败不影响主流程） */
+    private void increaseMaterialHeat(String params) {
+        for (Long id : collectMaterialIds(params)) {
+            Material material = materialMapper.selectById(id);
+            if (material != null) {
+                material.setHeat((material.getHeat() == null ? 0 : material.getHeat()) + 1);
+                materialMapper.updateById(material);
+            }
         }
     }
 }

@@ -125,6 +125,10 @@ const PATHS = {
   default: 'M30 4 C18 4 10 14 10 26 C10 42 10 56 10 62 C10 72 18 78 30 78 C42 78 50 72 50 62 C50 56 50 42 50 26 C50 14 42 4 30 4 Z'
 }
 const shapePath = computed(() => {
+  // 新版：素材 code 直接绑定渲染器 path（素材库重构后）
+  const code = props.shape?.code || ''
+  if (code && PATHS[code]) return PATHS[code]
+  // 旧数据回退：按名称关键字匹配
   const name = props.shape?.name || ''
   let key = 'default'
   // 匹配顺序敏感：长前缀系列 → 方/椭/杏/尖 → 圆 → 短圆
