@@ -4,7 +4,7 @@
       <!-- 顶部标题 + 操作（极简卡片头风格） -->
       <div class="page-head">
         <div class="head-left">
-          <span class="eyebrow-pill">DESIGN STUDIO</span>
+          <span class="eyebrow-pill">设计工作台</span>
           <h1 class="page-title">{{ editingId ? '编辑设计' : 'DIY 设计台' }}</h1>
         </div>
         <div class="head-actions">
@@ -197,7 +197,7 @@
                     :class="{ active: tab === t.key }"
                     @click="tab = t.key">
               <span v-html="t.icon"></span>
-              <span class="tab-label">{{ t.zh }} · {{ t.en }}</span>
+              <span class="tab-label">{{ t.zh }}</span>
             </button>
           </div>
 
@@ -744,11 +744,11 @@ const route = useRoute()
 const router = useRouter()
 
 const TABS = [
-  { key: 'shape',   zh: '甲型', en: 'SHAPE',   icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3c-3.5 0-6 2.5-6 6 0 5-1 7-1 9 0 2 2 3 7 3s7-1 7-3c0-2-1-4-1-9 0-3.5-2.5-6-6-6Z"/></svg>` },
-  { key: 'color',   zh: '底胶', en: 'POLISH', icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 6 5v6c0 5 3 8 6 10 3-2 6-5 6-10V5l-6-3Z"/></svg>` },
-  { key: 'pattern', zh: '图案', en: 'DECOR', icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 2 12l10 10 10-10L12 2Z"/><path d="m2 12 20 0"/><path d="M12 2v20"/></svg>` },
+  { key: 'shape',   zh: '甲型',   icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3c-3.5 0-6 2.5-6 6 0 5-1 7-1 9 0 2 2 3 7 3s7-1 7-3c0-2-1-4-1-9 0-3.5-2.5-6-6-6Z"/></svg>` },
+  { key: 'color',   zh: '底胶',  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 6 5v6c0 5 3 8 6 10 3-2 6-5 6-10V5l-6-3Z"/></svg>` },
+  { key: 'pattern', zh: '图案',  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 2 12l10 10 10-10L12 2Z"/><path d="m2 12 20 0"/><path d="M12 2v20"/></svg>` },
   // [暂时下线-钻饰] 恢复时取消下行注释即可
-  // { key: 'ornament', zh: '钻饰', en: 'JEWEL', icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12l4 6-10 12L2 9l4-6Z"/><path d="M2 9h20"/><path d="m12 21-4-12 4-6 4 6-4 12"/></svg>` }
+  // { key: 'ornament', zh: '钻饰',  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12l4 6-10 12L2 9l4-6Z"/><path d="M2 9h20"/><path d="m12 21-4-12 4-6 4 6-4 12"/></svg>` }
 ]
 const FINGER_NAMES       = ['小指', '无名指', '中指', '食指', '大拇指']
 const ZOOMED_NAIL_W = 210

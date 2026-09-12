@@ -1,25 +1,25 @@
 <template>
   <header class="header">
     <div class="container header-inner">
-      <!-- 特色 Logo：Nail 衬线深 + DIY 玫粉，辨识度高 -->
-      <router-link to="/" class="brand" aria-label="Nail DIY Home">
+      <!-- 特色 Logo：Nail 衬线深 + DIY 玫粉，辨识度高（品牌字标保留英文） -->
+      <router-link to="/" class="brand" aria-label="Nail DIY 美甲定制平台">
         <span class="brand-logo">
           <span class="logo-nail">Nail</span><span class="logo-diy">DIY</span>
         </span>
       </router-link>
 
-      <!-- 顶部导航：中+英混合，差异化（不是纯 STUDIO/GALLERY 字母流） -->
+      <!-- 顶部导航 -->
       <nav class="nav">
         <router-link to="/" class="nav-link" exact-active-class="active">
-          <span>首页 · Home</span>
+          <span>首页</span>
           <i class="dot"></i>
         </router-link>
         <router-link to="/templates" class="nav-link" active-class="active">
-          <span>款式 · Gallery</span>
+          <span>款式</span>
           <i class="dot"></i>
         </router-link>
         <router-link to="/designer" class="nav-link" active-class="active">
-          <span>设计台 · Studio</span>
+          <span>设计台</span>
           <i class="dot"></i>
         </router-link>
       </nav>
@@ -28,17 +28,17 @@
         <template v-if="auth.token">
           <router-link to="/my-designs" class="user-chip">
             <span class="avatar-dot"></span>
-            {{ auth.user?.nickname || 'Me' }}
+            {{ auth.user?.nickname || '我' }}
           </router-link>
-          <el-button text @click="onLogout">LOG OUT</el-button>
+          <el-button text @click="onLogout">退出登录</el-button>
         </template>
         <template v-else>
-          <el-button text @click="$router.push('/login')">LOG IN</el-button>
+          <el-button text @click="$router.push('/login')">登录</el-button>
           <el-button type="primary" round class="signup-btn" @click="$router.push('/register')">
-            SIGN UP
+            注册
           </el-button>
         </template>
-        <router-link to="/cart" class="cart-btn" aria-label="Cart">
+        <router-link to="/cart" class="cart-btn" aria-label="购物车">
           <el-icon :size="20"><ShoppingCart /></el-icon>
           <el-badge v-if="cartCount > 0" :value="cartCount" class="cart-badge" />
         </router-link>

@@ -4,10 +4,10 @@
     <section class="hero">
       <div class="container hero-inner">
         <div class="hero-copy">
-          <span class="eyebrow-pill">NAIL STUDIO · 在线定制美甲</span>
+          <span class="eyebrow-pill">在线美甲工作室 · 定制你的美甲</span>
           <h1 class="hero-title">
-            Design your<br />
-            <span class="italic-pink">perfect nails.</span>
+            设计你的<br />
+            <span class="italic-pink">专属美甲。</span>
           </h1>
           <p class="hero-desc">
             选甲型、试颜色、贴图案——所见即所得的美甲设计台。<br />
@@ -15,11 +15,11 @@
           </p>
           <div class="hero-actions">
             <button class="btn-primary-lg" @click="goDesign">
-              START DESIGNING
+              开始设计
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </button>
             <button class="btn-ghost-lg" @click="goTemplates">
-              BROWSE GALLERY
+              浏览款式
             </button>
           </div>
           <div class="hero-trust">
@@ -54,7 +54,7 @@
     <section class="features">
       <div class="container">
         <div class="features-head">
-          <span class="eyebrow-pill">HOW IT WORKS</span>
+          <span class="eyebrow-pill">定制流程</span>
           <h2 class="section-title">三步拥有你的专属美甲</h2>
         </div>
         <div class="feature-grid">
@@ -73,7 +73,7 @@
       <div class="container">
         <div class="section-head">
           <div class="head-left">
-            <span class="eyebrow-pill">GALLERY</span>
+            <span class="eyebrow-pill">精选款式</span>
             <h2 class="section-title">精选款式灵感</h2>
           </div>
           <router-link to="/templates" class="see-all">
@@ -101,7 +101,7 @@
             </div>
             <span class="use-overlay">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              USE THIS
+              套用此款
             </span>
           </router-link>
         </div>
@@ -111,7 +111,7 @@
     <!-- CTA 极简 -->
     <section class="cta">
       <div class="container cta-inner">
-        <span class="eyebrow-pill">READY?</span>
+        <span class="eyebrow-pill">准备好了吗</span>
         <h2 class="cta-title">准备好打造第一副专属美甲了吗？</h2>
         <p class="cta-desc">注册账号，保存你的每一次设计，还可以随时追订。</p>
         <button class="btn-primary-lg" @click="goRegister">立即注册体验 →</button>
@@ -126,9 +126,9 @@ import request from '../utils/request'
 
 const records = ref([])
 const FEATURES = [
-  { tag: 'STUDIO',   title: '在线设计',   desc: '甲型、颜色、图案自由组合。点击手指即可独立编辑每一根指甲的细节。' },
-  { tag: 'ARTISAN',  title: '商家制作',   desc: '设计确认后，合作美甲师按你的参数 1:1 精工制作，全程可追踪。' },
-  { tag: 'DELIVERY', title: '自提或邮寄', desc: '选择离你最近的门店自提，或者直接快递到家，怎么方便怎么来。' }
+  { tag: '在线定制',   title: '在线设计',   desc: '甲型、颜色、图案自由组合。点击手指即可独立编辑每一根指甲的细节。' },
+  { tag: '匠心手作',  title: '商家制作',   desc: '设计确认后，合作美甲师按你的参数 1:1 精工制作，全程可追踪。' },
+  { tag: '便捷收货', title: '自提或邮寄', desc: '选择离你最近的门店自提，或者直接快递到家，怎么方便怎么来。' }
 ]
 
 onMounted(async () => {

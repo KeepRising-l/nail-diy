@@ -4,7 +4,7 @@
       <!-- 页头 -->
       <header class="page-head">
         <div class="head-copy">
-          <span class="eyebrow-pill">GALLERY</span>
+          <span class="eyebrow-pill">精选款式</span>
           <h1 class="page-title">款式灵感库</h1>
           <p class="page-desc">挑选心仪的款式一键套用，或者作为起点自由修改，打造你的专属款。</p>
         </div>
@@ -32,7 +32,7 @@
             <div v-else class="placeholder">{{ t.name }}</div>
             <span class="use-overlay">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              USE THIS
+              套用此款
             </span>
           </div>
           <div class="meta">
