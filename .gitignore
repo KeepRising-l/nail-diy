@@ -20,3 +20,6 @@ backend/uploads/*
 
 # 独立 git 仓库的工作流文档，单独管理
 Workflow/
+
+# 原始设计素材（半成品/参考图），成品资产放 frontend/public
+素材/

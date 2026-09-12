@@ -31,12 +31,45 @@
               正在编辑 · 第 {{ activeFinger + 1 }} 指 · {{ FINGER_NAMES[activeFinger] }}
             </span>
 
+            <div class="stage-head-right">
+              <!-- 预览模式切换：手模 / 平铺 -->
+              <div class="view-toggle">
+                <button :class="{ on: viewMode === 'handModel' }" @click="viewMode = 'handModel'" title="手模视图">手模</button>
+                <button :class="{ on: viewMode === 'hand' }" @click="viewMode = 'hand'" title="甲片平铺">平铺</button>
+              </div>
+            </div>
           </div>
           <div ref="previewRef" class="preview-stage"
-               :style="{ minHeight: viewMode === 'hand' ? (360 * zoom / 100 + 'px') : '520px' }">
+               :style="{ minHeight: viewMode === 'hand' ? (360 * zoom / 100 + 'px') : (viewMode === 'handModel' ? '560px' : '520px') }">
+
+            <!-- ========== 手模视图：位图手 + 逐指槽位（支持拖拽投放） ========== -->
+            <div v-if="viewMode === 'handModel'" class="hand-wrap">
+              <HandModel :active-finger="activeFinger" :fingers="fingers"
+                         @select="activeFinger = $event"
+                         @drop="onHandDrop">
+                <template #default="{ finger, index, width }">
+                  <NailArt :shape="shapeById(finger.shapeId)"
+                           :color="colorCodeOf(finger)"
+                           :patterns="patternsOf(finger)"
+                           :active="index === activeFinger"
+                           :index="index"
+                           :width="width"
+                           :gradient="finger.gradient"
+                           :cat-eye="finger.catEye"
+                           :adjust="finger.adjust"
+                           :french="finger.french"
+                           :dots="finger.dots"
+                           :pattern-style="finger.patternStyle"
+                           :decorations="finger.decorations"
+                           :pattern-pos="finger.patternPos"
+                           @move-deco="p => onDecoMovedAt(index, p)"
+                           @move-pattern="p => onPatMovedAt(index, p)" />
+                </template>
+              </HandModel>
+            </div>
 
             <!-- ========== 甲片平铺预览：支持拖拽投放素材 ========== -->
-            <div v-if="viewMode === 'hand'" class="nails" :style="{ transform: `scale(${zoom / 100})` }">
+            <div v-else-if="viewMode === 'hand'" class="nails" :style="{ transform: `scale(${zoom / 100})` }">
               <div v-for="(f, i) in fingers" :key="'p' + i"
                    class="nail-slot"
                    :class="{ active: i === activeFinger, over: dragOverIdx === i }"
@@ -78,7 +111,7 @@
             <div v-else class="single-mode">
               <div class="single-head">
                 <span class="single-title">精细编辑 · 第 {{ activeFinger + 1 }} 指 · <b>{{ FINGER_NAMES[activeFinger] }}</b></span>
-                <button class="back-btn" @click="viewMode = 'hand'">⌄ 返回整组</button>
+                <button class="back-btn" @click="viewMode = 'handModel'">⌄ 返回整组</button>
               </div>
               <div class="single-nail">
                 <button class="single-nav" :disabled="activeFinger <= 0" @click="activeFinger--" title="上一指（←）">‹</button>
@@ -89,7 +122,7 @@
                      @dragover.prevent="singleOver = true"
                      @dragleave="singleOver = false"
                      @drop.prevent="singleOver = false; onNailDropAt(activeFinger, $event)"
-                     @dblclick.stop.prevent="viewMode = 'hand'">
+                     @dblclick.stop.prevent="viewMode = 'handModel'">
                   <NailArt
                     :shape="shapeById(fingers[activeFinger].shapeId)"
                     :color="colorCodeOf(fingers[activeFinger])"
@@ -610,6 +643,7 @@ import { useRoute, useRouter } from 'vue-router'
 import html2canvas from 'html2canvas'
 import request from '../utils/request'
 import NailArt from '../components/NailArt.vue'
+import HandModel from '../components/HandModel.vue'
 import { hexToHsl, hslToHex } from '../utils/color'
 
 // 简单的空状态组件（避免引入 el-empty 造成样式突兀）
@@ -808,6 +842,11 @@ function onNailDropAt(index, ev) {
     applyStyle(p.code)
   }
 }
+// 手模视图投放：槽位结构不同，复用同一套落点/投放逻辑
+function onHandDrop(index, ev) {
+  onNailDropAt(index, ev)
+}
+
 // -------- 拖动选色：色相 / 明度横向滑条（拖动圆点直接选色） --------
 const SLIDER_SAT = 62                            // 滑条取色固定饱和度
 const sliderHue = ref(20)                        // 0-360
@@ -860,12 +899,12 @@ function nudgeBar(kind, delta) {
   pushHistory()
 }
 
-// -------- 预览模式：甲片平铺 / 单甲精修（就地切换，非弹窗） --------
-const viewMode = ref('hand')                 // 'hand' 甲片平铺 | 'single' 单甲精修
+// -------- 预览模式：手模 / 甲片平铺 / 单甲（就地切换，非弹窗） --------
+const viewMode = ref('handModel')            // 'handModel' 手模 | 'hand' 甲片平铺 | 'single' 单甲精修
 function openZoom(i) { activeFinger.value = i; viewMode.value = 'single' }
 function onEscOrArrow(e) {
   if (viewMode.value !== 'single') return
-  if (e.key === 'Escape') viewMode.value = 'hand'
+  if (e.key === 'Escape') viewMode.value = 'handModel'
   else if (e.key === 'ArrowLeft' && activeFinger.value > 0) activeFinger.value--
   else if (e.key === 'ArrowRight' && activeFinger.value < 4) activeFinger.value++
 }
@@ -2052,6 +2091,43 @@ async function save() {
 @media (max-width: 1000px) {
   .studio { grid-template-columns: 1fr; }
   .preview-wrap { position: relative; top: 0; }
+}
+
+/* ========== 视图切换 + 手模容器 ========== */
+.stage-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.view-toggle {
+  display: inline-flex;
+  background: var(--color-muted);
+  padding: 3px;
+  border-radius: var(--radius-full);
+}
+.view-toggle button {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  transition: all .15s;
+}
+.view-toggle button.on {
+  background: #fff;
+  color: var(--color-foreground);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.hand-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 8px 0;
 }
 
 /* ========== 参数化款式面板 ========== */
