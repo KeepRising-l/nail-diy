@@ -23,3 +23,4 @@ Workflow/
 
 # 原始设计素材（半成品/参考图），成品资产放 frontend/public
 素材/
+__pycache__/
