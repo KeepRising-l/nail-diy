@@ -114,7 +114,7 @@
            @pointerdown.stop.prevent="onPatDown($event, j)">
           <image :href="p.imageUrl"
                  :x="patXY(j).x" :y="patXY(j).y"
-                 :width="18" :height="18" preserveAspectRatio="none" />
+                 :width="PATTERN_U" :height="PATTERN_U" preserveAspectRatio="none" />
         </g>
 
         <!-- [暂时下线-钻饰] 恢复时取消本段注释（宿主 Designer 的 JEWEL 面板同步恢复）
@@ -245,6 +245,7 @@ const shapePath = computed(() => {
 })
 
 // ---------- 贴花位置 ----------
+const PATTERN_U = 28                              // 贴花渲染尺寸（素材自带留白，有效视觉≈甲宽 40%）
 const patternPos = [
   { x: 21, y: 26 }, { x: 30, y: 40 }, { x: 18, y: 48 }
 ]
@@ -254,8 +255,8 @@ function patXY(j) {
   const pos = p ? props.patternPos?.[p.id] : null
   if (pos) {
     return {
-      x: Math.round((pos.x / 100) * 60 - 9),
-      y: Math.round((pos.y / 100) * HEIGHT.value - 9)
+      x: Math.round((pos.x / 100) * 60 - PATTERN_U / 2),
+      y: Math.round((pos.y / 100) * HEIGHT.value - PATTERN_U / 2)
     }
   }
   return patternPos[j % patternPos.length]
