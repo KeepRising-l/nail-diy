@@ -61,14 +61,14 @@ const App = {
           fingers: this.st.fingers,
           onSelect: i => { this.st.activeFinger = i }
         }, {
-          default: ({ finger, index, width, fit }) => h(NailArt, {
+          default: ({ finger, index, width, lenFit }) => h(NailArt, {
             shape: this.shapeById(finger.shapeId),
             color: finger.colorId,
             patterns: [],
             active: index === this.st.activeFinger,
             index,
             width,
-            length: finger.length * fit,
+            length: lenFit(finger.length),
             outlined: false,
             overlays: finger.overlays,
             overlayCatalog: [],

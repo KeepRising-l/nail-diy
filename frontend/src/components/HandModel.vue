@@ -19,7 +19,7 @@
          @dragleave="over = -1"
          @drop.prevent="$emit('drop', f.idx, $event)">
       <div class="slot-inner">
-        <slot :finger="fingerAt(i)" :index="f.idx" :width="slotWidth(f)" :fit="f.fit" />
+        <slot :finger="fingerAt(i)" :index="f.idx" :width="slotWidth(f)" :len-fit="slotLenFit(i)" />
       </div>
     </div>
 
@@ -57,8 +57,8 @@ const FINGER_NAMES = ['小指', '无名指', '中指', '食指', '大拇指']
  *  以下数据全部逐指从手图中实测：
  *  idx   —— fingers 数组索引
  *  x/y   —— 该指天然甲缘线中心（甲床最底缘，甲片根部的固定锚点）
- *  bedW  —— 天然甲床轮廓外缘宽度（px）；甲片宽 = bedW - 2，两侧落在甲床轮廓之内
- *  bedL  —— 天然甲床甲缘到指尖的长度（px）；换算成该指长度适配系数 fit，使默认长度恰好覆盖甲床
+ *  bedW  —— 天然甲床轮廓外缘宽度（px）；甲片最宽处 = bedW + 3，完整覆盖甲床、不明显超出
+ *  bedL  —— 天然甲床甲缘到指尖的长度（px）；换算成标准→加长的长度映射系数（fitA/fitB）
  *  angle —— 甲床长轴与竖直方向的夹角（度，尖端偏向 +x 为正；甲片中心轴与指轴一致，拇指为大斜角）
  *  tone  —— 该指甲缘旁肤色取样（用于甲缘遮罩，融入手图） */
 const HAND_VB = { w: 1278, h: 1230 }
@@ -75,10 +75,29 @@ const NAIL_ART_W = 60
 const NAIL_LAT_W = 44
 const ROOT_CENTER_Y = 7
 
-// 逐指派生几何：px/单位换算 s、甲片画布宽、长度适配系数 fit
+// 逐指派生几何：px/单位换算 s、甲片画布宽、标准→加长 长度映射系数
 for (const f of FINGERS) {
-  f.s = (f.bedW - 2) / NAIL_LAT_W                        // 甲片宽贴合甲床宽（每侧内收 1px 落在甲床轮廓内）
-  f.fit = ((f.bedL - 3) / f.s + 3) / 76                  // 默认长度时甲片尖端恰达指尖
+  f.s = (f.bedW + 3) / NAIL_LAT_W     // 甲片最宽处 = 甲床宽 + 3px：完整盖住天然甲床边缘，又不过分超出
+  // 长度映射（分段）：L∈[0.6,1.0] 基础段（贴合→标准），L∈[1.0,1.6] 加长段（标准→极长，
+  // 顶端延伸 = 原加长(1.37×甲床长) × 1.75 ≈ 2.40×甲床长）。根部锚点与宽度不随 L 变化。
+  f.fitA = (1.16 * f.bedL / f.s + 3) / 76           // L=1.0（标准）时的 k
+  f.fitB1 = 0.35 * f.bedL / (76 * f.s)              // 基础段斜率
+  f.fitB2 = 2.0667 * f.bedL / (76 * f.s)            // 加长段斜率
+}
+
+/** 生成单指的长度映射函数（经槽位作用域传给 NailArt 的 length）。
+ *  穿戴甲逻辑：L=0.6 贴合（尖端恰达指尖，仍完整覆盖甲床）→ L=1.0 标准（覆盖甲床 + 约 16% 基础延伸）
+ *  → L=1.6 加长（2.40× 甲床长，即原加长再加四分之三）。只沿指轴向指尖伸长，根部不动。 */
+function slotLenFit(i) {
+  const f = FINGERS[i]
+  return L => {
+    const l = Math.min(1.6, Math.max(0.6, Number(L) || 1))
+    const dBed = l <= 1
+      ? 1.02 + 0.35 * (l - 0.6)                       // 相对甲床长的尖端距离系数
+      : 1.16 + 2.0667 * (l - 1.0)
+    const k = (dBed * f.bedL / f.s + 3) / 76
+    return Math.min(2.8, Math.max(0.6, k))
+  }
 }
 
 /** 单指数据（按视觉槽位 i 映射到 fingers 数组索引） */
@@ -131,7 +150,7 @@ function cuticleXform(f) {
 }
 function cuticlePath(f) {
   const u = f.s
-  const half = u * (NAIL_LAT_W / 2) - 1
+  const half = u * (NAIL_LAT_W / 2 + 0.2)  // 略宽于甲片最宽处，连根部两侧一起盖住
   const end = -2.5 * u                     // 新月两端（稍越过根角）
   const tipCtrl = 4.5 * u                  // 尖端侧控制点：中央压上甲面约 2u
   const palmCtrl = -9.5 * u                // 掌侧控制点：融入皮肤

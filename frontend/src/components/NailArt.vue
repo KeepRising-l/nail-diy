@@ -117,7 +117,7 @@
                  :width="18" :height="18" preserveAspectRatio="none" />
         </g>
 
-        <!-- ⑥ 钻饰装饰（可拖动）：切面水晶渲染（底色→冠部切面→折射→边缘光→高光） -->
+        <!-- [暂时下线-钻饰] 恢复时取消本段注释（宿主 Designer 的 JEWEL 面板同步恢复）
         <g v-for="(dr, k) in decoRenders" :key="'deco' + dr.d.id"
            :transform="decoTransform(dr.d)"
            class="deco-item"
@@ -128,8 +128,9 @@
           </g>
           <path v-for="(el, i) in dr.gem.finish" v-bind="restAttrs(el)" :key="'fi' + i" />
         </g>
+        [暂时下线-钻饰] -->
 
-        <!-- ⑦ 凝胶顶胶高光（随甲型裁剪，覆盖底色/款式/贴花/钻饰之上） -->
+        <!-- ⑦ 凝胶顶胶高光（随甲型裁剪，覆盖底色/款式/贴花之上） -->
         <path :d="sheenPath" :fill="`url(#${uid}-sheen)`" />
         <path :d="shinePath" fill="none" :stroke="`url(#${uid}-shine)`" stroke-width="4.4" stroke-linecap="round" />
       </g>
@@ -163,7 +164,7 @@ const props = defineProps({
   decorations: { type: Array, default: () => [] }, // [{ id, type, x%, y%, size, angle }]
   patternPos: { type: Object, default: null },   // { [图案id]: { x%, y% } } 拖放落点（未记录的回退默认槽位）
   patternStyle: { type: Object, default: null }, // { code, params } 参数化款式（见 engine/patternStyles.js）
-  length: { type: Number, default: 1 },          // 长度系数 0.6~1.6，独立于甲型的设计维度
+  length: { type: Number, default: 1 },          // 长度系数 0.6~2.8，独立于甲型的设计维度
   outlined: { type: Boolean, default: true },    // 是否绘制描边（手模嵌入态传 false，改用柔和投影）
   overlays: { type: Array, default: () => [] },      // [{ id, opacity }] OVERLAY 层栈，可多选叠加
   overlayCatalog: { type: Array, default: () => [] } // OVERLAY 素材目录（id → code/image_url 解析）
@@ -178,51 +179,53 @@ const svgRef = ref(null)
 // 甲型 = 8 种纯轮廓（决定前端形状）；长度 = 独立系数 k∈[0.6,1.3]（决定甲片长短）
 const f1 = v => Number(v.toFixed(1))
 // 画布约定：y=0 为甲根（指根侧），y 沿指甲长轴朝指尖增大；viewBox 高度随长度伸缩
-// 甲型 = 8 种纯轮廓（决定前端形状）；长度 = 独立系数 k∈[0.6,1.6]（决定甲片长短）
+// 甲型 = 8 种纯轮廓（决定前端形状）；长度 = 独立系数 k∈[0.6,2.8]（决定甲片长短）
+// 统一几何基准：最宽处 x∈[8,52]（44 单位，手模按此映射甲床宽度），甲根缘 x∈[9,51]（宽 42，
+// 与最宽处仅差 5%——穿戴甲必须完整覆盖天然甲床，根部不能明显收窄露甲）、根缘中心 y≈7
 // 轮廓带轻微侧边收窄与较大的尖端圆弧，保证在小尺寸（手模 ~15px 宽）下仍读得出甲型而非矩形
 const CONTOURS = {
   // 圆形：前端呈自然圆弧，甲面饱满
   round(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 10.5 4 C 8.5 ${m} 10 ${f1(t - 14)} 16 ${f1(t - 6)} Q 30 ${f1(t + 7)} 44 ${f1(t - 6)} C 50 ${f1(t - 14)} 51.5 ${m} 49.5 4 C 40 7.5 20 7.5 10.5 4 Z`
+    return `M 9 4 C 7.5 ${m} 9.5 ${f1(t - 14)} 16 ${f1(t - 6)} Q 30 ${f1(t + 7)} 44 ${f1(t - 6)} C 50.5 ${f1(t - 14)} 52.5 ${m} 51 4 C 41 7.5 19 7.5 9 4 Z`
   },
   // 方圆形：整体偏方，但边角圆润（squoval）
   squoval(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 11 4 C 9.5 ${m} 11 ${f1(t - 12)} 17 ${f1(t - 5)} Q 30 ${f1(t + 4)} 43 ${f1(t - 5)} C 49 ${f1(t - 12)} 50.5 ${m} 49 4 C 40 7.5 20 7.5 11 4 Z`
+    return `M 9.5 4 C 8 ${m} 10 ${f1(t - 12)} 17 ${f1(t - 5)} Q 30 ${f1(t + 4)} 43 ${f1(t - 5)} C 50 ${f1(t - 12)} 52 ${m} 50.5 4 C 41 7.5 19 7.5 9.5 4 Z`
   },
   // 方形：前端平直，边角圆润收拢
   square(k) {
     const t = 76 * k + 4
-    return `M 10 4 L 10 ${f1(t - 7)} Q 10 ${f1(t)} 15.5 ${f1(t)} L 44.5 ${f1(t)} Q 50 ${f1(t)} 50 ${f1(t - 7)} L 50 4 C 41 7.5 19 7.5 10 4 Z`
+    return `M 9.5 4 L 9.5 ${f1(t - 7)} Q 9.5 ${f1(t)} 15.5 ${f1(t)} L 44.5 ${f1(t)} Q 50.5 ${f1(t)} 50.5 ${f1(t - 7)} L 50.5 4 C 41 7.5 19 7.5 9.5 4 Z`
   },
   // 椭圆形：整体修长，前端为柔和椭圆
   oval(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 11.5 4 C 9 ${m} 12 ${f1(t - 10)} 19 ${f1(t - 3)} Q 30 ${f1(t + 5)} 41 ${f1(t - 3)} C 48 ${f1(t - 10)} 51 ${m} 48.5 4 C 40 7.5 20 7.5 11.5 4 Z`
+    return `M 10 4 C 8 ${m} 11.5 ${f1(t - 10)} 19 ${f1(t - 3)} Q 30 ${f1(t + 5)} 41 ${f1(t - 3)} C 48.5 ${f1(t - 10)} 52 ${m} 50 4 C 40.5 7.5 19.5 7.5 10 4 Z`
   },
   // 杏仁形：两侧逐渐收窄，前端圆润尖细
   almond(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 12 4 C 9.5 ${m} 15 ${f1(t - 12)} 25 ${f1(t - 4)} Q 30 ${f1(t)} 35 ${f1(t - 4)} C 45 ${f1(t - 12)} 50.5 ${m} 48 4 C 39 7.5 21 7.5 12 4 Z`
+    return `M 10.5 4 C 8.5 ${m} 15 ${f1(t - 12)} 25 ${f1(t - 4)} Q 30 ${f1(t)} 35 ${f1(t - 4)} C 45 ${f1(t - 12)} 51.5 ${m} 49.5 4 C 40 7.5 20 7.5 10.5 4 Z`
   },
   // 芭蕾形：两侧收窄，前端平直，类似芭蕾舞鞋（coffin）
   ballerina(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 9.5 4 C 8.5 ${m} 11 ${f1(t - 13)} 17 ${f1(t - 5.5)} L 21.5 ${f1(t - 1.5)} Q 23 ${f1(t)} 25 ${f1(t)} L 35 ${f1(t)} Q 37 ${f1(t)} 38.5 ${f1(t - 1.5)} L 43 ${f1(t - 5.5)} C 49 ${f1(t - 13)} 51.5 ${m} 50.5 4 C 41 7.5 19 7.5 9.5 4 Z`
+    return `M 9 4 C 8 ${m} 11 ${f1(t - 13)} 17 ${f1(t - 5.5)} L 21.5 ${f1(t - 1.5)} Q 23 ${f1(t)} 25 ${f1(t)} L 35 ${f1(t)} Q 37 ${f1(t)} 38.5 ${f1(t - 1.5)} L 43 ${f1(t - 5.5)} C 49 ${f1(t - 13)} 52 ${m} 51 4 C 41 7.5 19 7.5 9 4 Z`
   },
   // 尖形：两侧明显收窄，前端形成尖角
   stiletto(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 12 4 C 9.5 ${m} 17 ${f1(t - 14)} 27 ${f1(t - 2.5)} L 30 ${f1(t)} L 33 ${f1(t - 2.5)} C 43 ${f1(t - 14)} 50.5 ${m} 48 4 C 39 7.5 21 7.5 12 4 Z`
+    return `M 10.5 4 C 8.5 ${m} 16.5 ${f1(t - 14)} 27 ${f1(t - 2.5)} L 30 ${f1(t)} L 33 ${f1(t - 2.5)} C 43.5 ${f1(t - 14)} 51.5 ${m} 49.5 4 C 40 7.5 20 7.5 10.5 4 Z`
   },
   // 俄罗斯方：整体修长，两侧略微收窄，前端保持平直
   russian(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 11.5 4 C 10.5 ${m} 13 ${f1(t - 11)} 17.5 ${f1(t - 4.5)} Q 19 ${f1(t)} 22 ${f1(t)} L 38 ${f1(t)} Q 41 ${f1(t)} 42.5 ${f1(t - 4.5)} C 47 ${f1(t - 11)} 49.5 ${m} 48.5 4 C 40 7.5 20 7.5 11.5 4 Z`
+    return `M 10 4 C 9 ${m} 13 ${f1(t - 11)} 17.5 ${f1(t - 4.5)} Q 19 ${f1(t)} 22 ${f1(t)} L 38 ${f1(t)} Q 41 ${f1(t)} 42.5 ${f1(t - 4.5)} C 47 ${f1(t - 11)} 51 ${m} 50 4 C 40.5 7.5 19.5 7.5 10 4 Z`
   }
 }
-const kLen = computed(() => Math.min(1.6, Math.max(0.6, Number(props.length) || 1)))
+const kLen = computed(() => Math.min(2.8, Math.max(0.6, Number(props.length) || 1)))
 const HEIGHT = computed(() => Math.round(76 * kLen.value + 8))
 const shapePath = computed(() => {
   const gen = CONTOURS[props.shape?.code]

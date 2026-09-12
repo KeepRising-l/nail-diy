@@ -47,14 +47,14 @@
               <HandModel :active-finger="activeFinger" :fingers="fingers"
                          @select="activeFinger = $event"
                          @drop="onHandDrop">
-                <template #default="{ finger, index, width, fit }">
+                <template #default="{ finger, index, width, lenFit }">
                   <NailArt :shape="shapeById(finger.shapeId)"
                            :color="colorCodeOf(finger)"
                            :patterns="patternsOf(finger)"
                            :active="index === activeFinger"
                            :index="index"
                            :width="width"
-                           :length="finger.length * fit"
+                           :length="lenFit(finger.length)"
                            :outlined="false"
                            :overlays="finger.overlays"
                            :overlay-catalog="overlays"
@@ -184,7 +184,7 @@
           </div>
           <p class="tip">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            点击指甲选中，<b>双击放大</b>；素材<b>拖到哪就落在哪</b>，图案/钻饰落下后还能在甲面上拖动微调；平台标准价 <b>￥39.00 / 副</b>
+            点击指甲选中，<b>双击放大</b>；素材<b>拖到哪就落在哪</b>，图案落下后还能在甲面上拖动微调；平台标准价 <b>￥39.00 / 副</b>
           </p>
         </div>
 
@@ -224,21 +224,21 @@
                 <empty-box v-if="!shapes.length" text="暂无甲型素材" />
               </div>
 
-              <!-- 长度：独立于甲型的设计维度（短杏仁到超长杏仁都是杏仁形） -->
+              <!-- 长度：独立于甲型的设计维度（标准即完整覆盖天然甲床，加长向指尖延伸） -->
               <div class="fx-block length-block">
                 <div class="fx-head">
                   <div>
                     <span class="fx-title">长度</span>
-                    <span class="fx-sub">独立维度 · 只改长短，不改轮廓</span>
+                    <span class="fx-sub">标准已完整覆盖甲床 · 加长向指尖延伸</span>
                   </div>
                   <span class="len-value">{{ lengthLabel }}</span>
                 </div>
                 <div class="fx-body">
                   <div class="slider-row len-row">
-                    <span class="fx-label">短</span>
+                    <span class="fx-label">标准</span>
                     <input type="range" min="0.6" max="1.6" step="0.05"
                            v-model.number="fingers[activeFinger].length" @change="pushHistory" />
-                    <span class="fx-label">长</span>
+                    <span class="fx-label">加长</span>
                   </div>
                 </div>
               </div>
@@ -638,7 +638,7 @@
               </template>
             </template>
 
-            <!-- 钻饰：材料盘 + 当前指甲装饰管理 -->
+            <!-- [暂时下线-钻饰] 恢复时：取消本段注释 + 恢复 TABS 中的 ornament 项 + 恢复 NailArt 内 ⑥ 钻饰渲染块
             <template v-if="tab === 'ornament'">
               <p class="section-desc">点击钻饰添加到 <b>第 {{ activeFinger + 1 }} · {{ FINGER_NAMES[activeFinger] }}</b>，在预览区拖动调整位置：</p>
               <div class="cat-row">
@@ -658,7 +658,6 @@
                 </button>
               </div>
 
-              <!-- 当前指甲的装饰列表 -->
               <template v-if="fingers[activeFinger].decorations.length">
                 <p class="section-desc deco-count">已放置 <b>{{ fingers[activeFinger].decorations.length }}</b> 件钻饰：</p>
                 <div class="deco-list">
@@ -683,6 +682,7 @@
               </template>
               <p v-else class="deco-empty-tip">尚未放置钻饰，点击上方材料盘添加</p>
             </template>
+            [暂时下线-钻饰] -->
           </div>
         </div>
       </div>
@@ -724,7 +724,8 @@ const TABS = [
   { key: 'shape',   zh: '甲型', en: 'SHAPE',   icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3c-3.5 0-6 2.5-6 6 0 5-1 7-1 9 0 2 2 3 7 3s7-1 7-3c0-2-1-4-1-9 0-3.5-2.5-6-6-6Z"/></svg>` },
   { key: 'color',   zh: '底胶', en: 'POLISH', icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 6 5v6c0 5 3 8 6 10 3-2 6-5 6-10V5l-6-3Z"/></svg>` },
   { key: 'pattern', zh: '图案', en: 'DECOR', icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 2 12l10 10 10-10L12 2Z"/><path d="m2 12 20 0"/><path d="M12 2v20"/></svg>` },
-  { key: 'ornament', zh: '钻饰', en: 'JEWEL', icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12l4 6-10 12L2 9l4-6Z"/><path d="M2 9h20"/><path d="m12 21-4-12 4-6 4 6-4 12"/></svg>` }
+  // [暂时下线-钻饰] 恢复时取消下行注释即可
+  // { key: 'ornament', zh: '钻饰', en: 'JEWEL', icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12l4 6-10 12L2 9l4-6Z"/><path d="M2 9h20"/><path d="m12 21-4-12 4-6 4 6-4 12"/></svg>` }
 ]
 const FINGER_NAMES       = ['小指', '无名指', '中指', '食指', '大拇指']
 const ZOOMED_NAIL_W = 210
@@ -770,7 +771,7 @@ const FRENCH_COLORS = ['#FFFFFF', '#F6D7DE', '#F3E0C0', '#D9E4F2', '#1F1B1A', '#
 function defaultFinger() {
   return {
     shapeId: null,
-    length: 1,                        // 长度系数 0.6~1.6（独立于甲型的设计维度）
+    length: 1,                        // 长度系数 0.6~1.6，1.0=标准（完整覆盖甲床+基础延伸），加长段顶端为 2.4× 甲床长
     colorId: null,
     overlays: [],                     // OVERLAY 层栈 [{ id, opacity }]，可多选叠加
     patternIds: [],
@@ -1018,8 +1019,8 @@ function removeOverlay(id) {
   const i = arr.findIndex(o => o.id === id)
   if (i >= 0) { arr.splice(i, 1); pushHistory() }
 }
-// 长度档位文案（短/自然/标准/加长/超长）
-const LENGTH_LABELS = [[0.75, '短'], [0.95, '自然'], [1.1, '标准'], [1.3, '加长'], [1.45, '超长'], [9, '极长']]
+// 长度档位文案（穿戴甲逻辑：贴合/标准/加长/极长——标准即完整覆盖甲床+基础延伸，默认 1.0 = 标准）
+const LENGTH_LABELS = [[0.85, '贴合'], [1.15, '标准'], [1.45, '加长'], [9, '极长']]
 const lengthLabel = computed(() => {
   const v = active.value?.length || 1
   return (LENGTH_LABELS.find(l => v < l[0]) || LENGTH_LABELS[3])[1]
