@@ -30,12 +30,55 @@
             <span class="active-finger" v-if="activeFinger >= 0">
               正在编辑 · 第 {{ activeFinger + 1 }} 指 · {{ FINGER_NAMES[activeFinger] }}
             </span>
+
+            <div class="stage-head-right">
+              <!-- 肤色选择（手模视图专属） -->
+              <div class="skin-pick" v-if="viewMode === 'handModel'">
+                <span v-for="s in SKIN_TONES" :key="s.value"
+                      class="skin-dot"
+                      :class="{ active: skinTone === s.value }"
+                      :style="{ background: s.color }"
+                      :title="s.label"
+                      @click="skinTone = s.value"></span>
+              </div>
+              <!-- 预览模式切换：手模 / 平铺 -->
+              <div class="view-toggle">
+                <button :class="{ on: viewMode === 'handModel' }" @click="viewMode = 'handModel'" title="手模视图">手模</button>
+                <button :class="{ on: viewMode === 'hand' }" @click="viewMode = 'hand'" title="甲片平铺">平铺</button>
+              </div>
+            </div>
           </div>
           <div ref="previewRef" class="preview-stage"
-               :style="{ minHeight: viewMode === 'hand' ? (360 * zoom / 100 + 'px') : '520px' }">
+               :style="{ minHeight: viewMode === 'hand' ? (360 * zoom / 100 + 'px') : (viewMode === 'handModel' ? '560px' : '520px') }">
+
+            <!-- ========== 手模视图：矢量手模 + 逐指槽位（支持拖拽投放） ========== -->
+            <div v-if="viewMode === 'handModel'" class="hand-wrap">
+              <HandModel :skin-tone="skinTone" :active-finger="activeFinger" :fingers="fingers"
+                         @select="activeFinger = $event"
+                         @drop="onHandDrop">
+                <template #default="{ finger, index, width }">
+                  <NailArt :shape="shapeById(finger.shapeId)"
+                           :color="colorCodeOf(finger)"
+                           :patterns="patternsOf(finger)"
+                           :active="index === activeFinger"
+                           :index="index"
+                           :width="width"
+                           :gradient="finger.gradient"
+                           :cat-eye="finger.catEye"
+                           :adjust="finger.adjust"
+                           :french="finger.french"
+                           :dots="finger.dots"
+                           :pattern-style="finger.patternStyle"
+                           :decorations="finger.decorations"
+                           :pattern-pos="finger.patternPos"
+                           @move-deco="p => onDecoMovedAt(index, p)"
+                           @move-pattern="p => onPatMovedAt(index, p)" />
+                </template>
+              </HandModel>
+            </div>
 
             <!-- ========== 甲片平铺预览：支持拖拽投放素材 ========== -->
-            <div v-if="viewMode === 'hand'" class="nails" :style="{ transform: `scale(${zoom / 100})` }">
+            <div v-else-if="viewMode === 'hand'" class="nails" :style="{ transform: `scale(${zoom / 100})` }">
               <div v-for="(f, i) in fingers" :key="'p' + i"
                    class="nail-slot"
                    :class="{ active: i === activeFinger, over: dragOverIdx === i }"
@@ -63,6 +106,7 @@
                   :adjust="f.adjust"
                   :french="f.french"
                   :dots="f.dots"
+                  :pattern-style="f.patternStyle"
                   :decorations="f.decorations"
                   :pattern-pos="f.patternPos"
                   @move-deco="p => onDecoMovedAt(i, p)"
@@ -76,7 +120,7 @@
             <div v-else class="single-mode">
               <div class="single-head">
                 <span class="single-title">精细编辑 · 第 {{ activeFinger + 1 }} 指 · <b>{{ FINGER_NAMES[activeFinger] }}</b></span>
-                <button class="back-btn" @click="viewMode = 'hand'">⌄ 返回整组</button>
+                <button class="back-btn" @click="viewMode = 'handModel'">⌄ 返回整组</button>
               </div>
               <div class="single-nail">
                 <button class="single-nav" :disabled="activeFinger <= 0" @click="activeFinger--" title="上一指（←）">‹</button>
@@ -87,7 +131,7 @@
                      @dragover.prevent="singleOver = true"
                      @dragleave="singleOver = false"
                      @drop.prevent="singleOver = false; onNailDropAt(activeFinger, $event)"
-                     @dblclick.stop.prevent="viewMode = 'hand'">
+                     @dblclick.stop.prevent="viewMode = 'handModel'">
                   <NailArt
                     :shape="shapeById(fingers[activeFinger].shapeId)"
                     :color="colorCodeOf(fingers[activeFinger])"
@@ -100,6 +144,7 @@
                     :adjust="fingers[activeFinger].adjust"
                     :french="fingers[activeFinger].french"
                     :dots="fingers[activeFinger].dots"
+                    :pattern-style="fingers[activeFinger].patternStyle"
                     :decorations="fingers[activeFinger].decorations"
                     :pattern-pos="fingers[activeFinger].patternPos"
                     @move-deco="p => onDecoMovedAt(activeFinger, p)"
@@ -345,10 +390,70 @@
             <template v-if="tab === 'pattern'">
               <!-- 子面板切换 -->
               <div class="subtabs">
+                <button :class="{ active: patternSub === 'style' }"   @click="patternSub = 'style'">款式</button>
                 <button :class="{ active: patternSub === 'sticker' }"  @click="patternSub = 'sticker'">贴花</button>
                 <button :class="{ active: patternSub === 'french' }"   @click="patternSub = 'french'">法式</button>
                 <button :class="{ active: patternSub === 'dots' }"     @click="patternSub = 'dots'">波点 / 豹纹</button>
               </div>
+
+              <!-- ── 参数化款式（引擎渲染） ── -->
+              <template v-if="patternSub === 'style'">
+                <p class="section-desc">为 <b>第 {{ activeFinger + 1 }} · {{ FINGER_NAMES[activeFinger] }}</b> 选择款式（可叠加、可调参）：</p>
+                <div class="style-grid">
+                  <div v-for="m in stylePatterns" :key="m.id"
+                       class="style-card"
+                       :class="{ active: active.patternStyle?.code === m.code }"
+                       draggable="true" @dragstart="onDragStart($event, { kind: 'style', code: m.code })"
+                       role="button" tabindex="0"
+                       :aria-pressed="active.patternStyle?.code === m.code"
+                       @keydown.enter.prevent="toggleStyle(m.code)"
+                       @click="toggleStyle(m.code)">
+                    <div class="style-preview">
+                      <NailArt :shape="shapeById(active.shapeId)" :color="colorCodeOf(active)"
+                               :pattern-style="{ code: m.code, params: styleDefaults(m.code) }" :width="34" />
+                    </div>
+                    <span class="style-name">{{ m.name }}</span>
+                  </div>
+                  <empty-box v-if="!stylePatterns.length" text="暂无参数化款式" />
+                </div>
+
+                <!-- 当前款式参数调整 -->
+                <div class="fx-block" v-if="active.patternStyle && activeStyleSchema.length">
+                  <div class="fx-head">
+                    <div>
+                      <span class="fx-title">{{ activeStyleName }}</span>
+                      <span class="fx-sub">调整参数实时预览</span>
+                    </div>
+                    <button class="btn-reset" @click="clearStyle">清除款式</button>
+                  </div>
+                  <div class="fx-body">
+                    <div v-for="s in activeStyleSchema" :key="s.key" class="slider-row">
+                      <template v-if="s.type === 'range'">
+                        <span class="fx-label">{{ s.label }} <b>{{ active.patternStyle.params[s.key] }}</b></span>
+                        <input type="range" :min="s.min" :max="s.max" :step="(String(s.default).includes('.') ? 0.1 : 1)"
+                               :value="active.patternStyle.params[s.key]"
+                               @input="updateStyleParam(s.key, Number($event.target.value))" />
+                      </template>
+                      <template v-else-if="s.type === 'color'">
+                        <span class="fx-label">{{ s.label }}</span>
+                        <div class="style-color-row">
+                          <input type="color" :value="active.patternStyle.params[s.key]"
+                                 @input="updateStyleParam(s.key, $event.target.value)" />
+                          <input class="hex-input sm" :value="active.patternStyle.params[s.key]"
+                                 maxlength="7" @change="updateStyleParam(s.key, $event.target.value)" />
+                        </div>
+                      </template>
+                      <template v-else-if="s.type === 'select'">
+                        <span class="fx-label">{{ s.label }}</span>
+                        <select class="style-select" :value="active.patternStyle.params[s.key]"
+                                @change="updateStyleParam(s.key, $event.target.value)">
+                          <option v-for="o in s.options" :key="o" :value="o">{{ o }}</option>
+                        </select>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </template>
 
               <!-- ── 贴花（素材库） ── -->
               <template v-if="patternSub === 'sticker'">
@@ -521,6 +626,7 @@ import { useRoute, useRouter } from 'vue-router'
 import html2canvas from 'html2canvas'
 import request from '../utils/request'
 import NailArt from '../components/NailArt.vue'
+import HandModel from '../components/HandModel.vue'
 import { hexToHsl, hslToHex } from '../utils/color'
 
 // 简单的空状态组件（避免引入 el-empty 造成样式突兀）
@@ -603,6 +709,7 @@ function defaultFinger() {
     adjust:   { hue: 0, sat: 0, light: 0 },
     french:   { enabled: false, color: '#FFFFFF', height: 26, curvature: 72 },
     dots:     { enabled: false, kind: 'dots', density: 7, size: 2.5, color: '' },
+    patternStyle: null,               // { code, params } 参数化款式（引擎渲染）
     decorations: [],
     patternPos: {}                  // { [图案id]: { x%, y% } } 拖放落点
   }
@@ -612,6 +719,8 @@ function defaultFinger() {
 const shapes = ref([])
 const colors = ref([])
 const patterns = ref([])
+const stylePatterns = ref([])        // 参数化款式（PATTERN_STYLE）
+const decors = ref([])               // 矢量装饰件（DECOR）
 const CATEGORY_LABELS = { BASIC: '基础', FRENCH: '法式', GRADIENT: '渐变', NATURE: '自然', GEO: '几何', SHINE: '闪钻', CUTE: '可爱' }
 function categoryLabel(v) { return CATEGORY_LABELS[v] || v }
 // 图案分类 chips 按实际素材动态生成，避免出现永远为空的死筛选
@@ -628,14 +737,18 @@ watch(patternCats, (cats) => {
 
 async function loadMaterials() {
   try {
-    const [s, c, p] = await Promise.all([
+    const [s, c, p, sp, d] = await Promise.all([
       request.get('/materials', { params: { type: 'SHAPE' } }),
       request.get('/materials', { params: { type: 'COLOR' } }),
-      request.get('/materials', { params: { type: 'PATTERN_IMG' } })
+      request.get('/materials', { params: { type: 'PATTERN_IMG' } }),
+      request.get('/materials', { params: { type: 'PATTERN_STYLE' } }),
+      request.get('/materials', { params: { type: 'DECOR' } })
     ])
     shapes.value = s.data || []
     colors.value = c.data || []
     patterns.value = p.data || []
+    stylePatterns.value = sp.data || []
+    decors.value = d.data || []
   } catch (e) { /* */ }
 }
 
@@ -708,7 +821,13 @@ function onNailDropAt(index, ev) {
     pushHistory()
   } else if (p.kind === 'deco') {
     addDecoration(p.type, pos)
+  } else if (p.kind === 'style') {
+    applyStyle(p.code)
   }
+}
+// 手模视图投放：槽位结构不同，复用同一套落点/投放逻辑
+function onHandDrop(index, ev) {
+  onNailDropAt(index, ev)
 }
 
 // -------- 拖动选色：色相 / 明度横向滑条（拖动圆点直接选色） --------
@@ -763,12 +882,19 @@ function nudgeBar(kind, delta) {
   pushHistory()
 }
 
-// -------- 预览模式：整排 / 单甲（就地切换，非弹窗） --------
-const viewMode = ref('hand')                   // 'hand' 甲片平铺预览 | 'single' 单甲精修
+// -------- 预览模式：手模 / 甲片平铺 / 单甲（就地切换，非弹窗） --------
+const viewMode = ref('handModel')            // 'handModel' 手模 | 'hand' 甲片平铺 | 'single' 单甲精修
+const skinTone = ref('medium')               // 手模肤色：fair/medium/tan/deep
+const SKIN_TONES = [
+  { value: 'fair',   label: '白皙', color: '#F7E0CC' },
+  { value: 'medium', label: '自然', color: '#E8C6A2' },
+  { value: 'tan',    label: '暖麦', color: '#C8935C' },
+  { value: 'deep',   label: '深棕', color: '#93613A' }
+]
 function openZoom(i) { activeFinger.value = i; viewMode.value = 'single' }
 function onEscOrArrow(e) {
   if (viewMode.value !== 'single') return
-  if (e.key === 'Escape') viewMode.value = 'hand'
+  if (e.key === 'Escape') viewMode.value = 'handModel'
   else if (e.key === 'ArrowLeft' && activeFinger.value > 0) activeFinger.value--
   else if (e.key === 'ArrowRight' && activeFinger.value < 4) activeFinger.value++
 }
@@ -893,6 +1019,45 @@ function onPatMovedAt(fingerIdx, payload) {
   const id = f?.patternIds[payload.index]
   if (id != null) f.patternPos[id] = { x: payload.x, y: payload.y }
 }
+// -------- 参数化款式（引擎渲染，见 engine/patternStyles.js） --------
+function parseStyleSchema(attrsStr) {
+  try { return (JSON.parse(attrsStr || '{}').paramsSchema) || [] } catch (e) { return [] }
+}
+function styleDefaults(code) {
+  const m = stylePatterns.value.find(x => x.code === code)
+  const schema = parseStyleSchema(m?.attrs)
+  const params = {}
+  schema.forEach(s => { if (s.default !== undefined) params[s.key] = s.default })
+  return params
+}
+const activeStyleSchema = computed(() => {
+  const code = active.value?.patternStyle?.code
+  const m = stylePatterns.value.find(x => x.code === code)
+  return parseStyleSchema(m?.attrs)
+})
+const activeStyleName = computed(() => {
+  const code = active.value?.patternStyle?.code
+  return stylePatterns.value.find(x => x.code === code)?.name || ''
+})
+function applyStyle(code) {
+  active.value.patternStyle = { code, params: styleDefaults(code) }
+  pushHistory()
+}
+function toggleStyle(code) {
+  if (active.value.patternStyle?.code === code) clearStyle()
+  else applyStyle(code)
+}
+function updateStyleParam(key, val) {
+  if (active.value.patternStyle) {
+    active.value.patternStyle.params[key] = val
+    pushHistory()
+  }
+}
+function clearStyle() {
+  active.value.patternStyle = null
+  pushHistory()
+}
+
 const syncLabel = computed(() => '同步到全部手指')
 function syncAll() {
   const src = JSON.parse(JSON.stringify(active.value))
@@ -905,6 +1070,7 @@ function syncAll() {
     f.adjust   = JSON.parse(JSON.stringify(src.adjust))
     f.french   = JSON.parse(JSON.stringify(src.french))
     f.dots     = JSON.parse(JSON.stringify(src.dots))
+    f.patternStyle = src.patternStyle ? JSON.parse(JSON.stringify(src.patternStyle)) : null
     f.decorations = src.decorations.map(d => ({ ...d, id: d.id + '-' + Math.random().toString(36).slice(2, 6) }))
     f.patternPos = JSON.parse(JSON.stringify(src.patternPos || {}))
   })
@@ -970,6 +1136,7 @@ function mergeFinger(target, fp) {
   if (fp.adjust)   target.adjust = { ...def.adjust, ...fp.adjust }
   if (fp.french)   target.french = { ...def.french, ...fp.french }
   if (fp.dots)     target.dots = { ...def.dots, ...fp.dots }
+  if (fp.patternStyle) target.patternStyle = fp.patternStyle
   if (Array.isArray(fp.decorations)) target.decorations = fp.decorations
   // 贴花落点：只回填仍存在的图案 id（老数据无此字段则保持默认槽位）
   if (fp.patternPos && typeof fp.patternPos === 'object') {
@@ -1914,5 +2081,114 @@ async function save() {
 @media (max-width: 1000px) {
   .studio { grid-template-columns: 1fr; }
   .preview-wrap { position: relative; top: 0; }
+}
+
+/* ========== 手模视图 + 肤色 + 视图切换 ========== */
+.stage-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.skin-pick { display: flex; align-items: center; gap: 6px; }
+.skin-dot {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px var(--color-border);
+  transition: all .15s;
+}
+.skin-dot:hover { transform: scale(1.1); }
+.skin-dot.active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--color-primary); }
+.view-toggle {
+  display: inline-flex;
+  background: var(--color-muted);
+  padding: 3px;
+  border-radius: var(--radius-full);
+}
+.view-toggle button {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  transition: all .15s;
+}
+.view-toggle button.on {
+  background: #fff;
+  color: var(--color-foreground);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.hand-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 8px 0;
+}
+
+/* ========== 参数化款式面板 ========== */
+.style-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 6px;
+}
+.style-card {
+  padding: 10px;
+  background: var(--color-muted);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all .2s;
+  text-align: center;
+}
+.style-card:hover { border-color: var(--color-primary-light-5); }
+.style-card.active {
+  background: var(--color-primary-light-9);
+  border-color: var(--color-primary);
+}
+.style-preview {
+  height: 64px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.style-name {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.style-card.active .style-name { color: var(--color-primary); }
+.style-color-row { display: flex; align-items: center; gap: 8px; }
+.style-color-row input[type="color"] {
+  width: 36px; height: 30px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: #fff;
+  padding: 2px;
+  cursor: pointer;
+}
+.style-select {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--color-foreground);
+  background: #fff;
+  outline: none;
 }
 </style>

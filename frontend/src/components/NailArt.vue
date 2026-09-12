@@ -30,6 +30,13 @@
         <!-- ② 猫眼光带（叠加提亮） -->
         <path v-if="catEyeOn" :d="shapePath" :fill="`url(#${uid}-cat)`" style="mix-blend-mode: screen" />
 
+        <!-- ②.5 参数化款式（引擎生成：大理石/玳瑁/极光/曲线/几何/星星等，渲染在底色与法式之间） -->
+        <g v-for="(el, i) in styleEls" :key="'st' + i">
+          <path v-if="el.tag === 'path'" v-bind="restAttrs(el)" />
+          <circle v-else-if="el.tag === 'circle'" v-bind="restAttrs(el)" />
+          <ellipse v-else-if="el.tag === 'ellipse'" v-bind="restAttrs(el)" />
+        </g>
+
         <!-- ③ 法式甲（指尖弧形带） -->
         <path v-if="frenchOn" :d="frenchPath" :fill="frenchFill" />
 
@@ -79,6 +86,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { adjustColor, seededRandom, isDarkColor } from '../utils/color'
+import { genPattern } from '../engine/patternStyles'
 
 const props = defineProps({
   shape: { type: Object, default: null },   // { name } 甲型素材
@@ -94,7 +102,8 @@ const props = defineProps({
   french: { type: Object, default: null },      // { enabled, color, height(10-40), curvature(0-100) }
   dots: { type: Object, default: null },        // { enabled, kind:'dots'|'leopard', density(3-15), size(1-5), color }
   decorations: { type: Array, default: () => [] }, // [{ id, type, x%, y%, size, angle }]
-  patternPos: { type: Object, default: null }   // { [图案id]: { x%, y% } } 拖放落点（未记录的回退默认槽位）
+  patternPos: { type: Object, default: null },   // { [图案id]: { x%, y% } } 拖放落点（未记录的回退默认槽位）
+  patternStyle: { type: Object, default: null }  // { code, params } 参数化款式（见 engine/patternStyles.js）
 })
 const emit = defineEmits(['select', 'moveDeco', 'movePattern'])
 
@@ -185,6 +194,19 @@ const ceOpacity = computed(() => (ceBright.value * 0.75).toFixed(2))
 const halfW = computed(() => Math.max(0.08, (ce.value.width / 100) / 2 * 0.9))
 const catA = computed(() => Math.max(0, 0.5 - halfW.value).toFixed(2))
 const catB = computed(() => Math.min(1, 0.5 + halfW.value).toFixed(2))
+
+// ---------- ②.5 参数化款式（引擎） ----------
+const styleEls = computed(() => {
+  const code = props.patternStyle?.code
+  if (!code) return []
+  const params = props.patternStyle?.params || {}
+  return genPattern(code, { baseColor: base1Final.value, seed: props.index + 1, ...params })
+})
+// 去掉元素描述里的 tag 字段，余下全部透传为 SVG 属性
+function restAttrs(el) {
+  const { tag, ...attrs } = el
+  return attrs
+}
 
 // ---------- ③ 法式甲 ----------
 const frenchOn = computed(() => !!props.french?.enabled)

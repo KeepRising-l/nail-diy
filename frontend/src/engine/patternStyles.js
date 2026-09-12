@@ -116,14 +116,19 @@ export const PATTERN_STYLES = {
     }
   },
 
-  /** 极光晕染：中心径向光晕（radialGradient 由 NailArt defs 统一挂载，此处返回描述） */
+  /** 极光晕染：多层同心半透明圆模拟径向光晕（避免额外 defs，便于统一渲染） */
   AURA: {
     name: '极光晕染',
     gen({ centerColor = '#F8C8DC', radius = 45, cy = 45 }) {
-      return [{
-        tag: '__radial__', id: 'aura',
-        cx: 50, cy, r: radius, color: centerColor
-      }]
+      const cx = 30
+      const rings = []
+      const steps = 4
+      for (let i = steps; i >= 1; i--) {
+        const r = radius * (i / steps)
+        const opacity = 0.10 + (steps - i) * 0.09
+        rings.push({ tag: 'circle', cx, cy, r, fill: centerColor, opacity: Number(opacity.toFixed(2)) })
+      }
+      return rings
     }
   },
 
