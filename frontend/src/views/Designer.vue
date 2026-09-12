@@ -531,6 +531,32 @@
             <!-- 钻饰：材料盘 + 当前指甲装饰管理 -->
             <template v-if="tab === 'ornament'">
               <p class="section-desc">点击钻饰添加到 <b>第 {{ activeFinger + 1 }} · {{ FINGER_NAMES[activeFinger] }}</b>，在预览区拖动调整位置：</p>
+              <!-- 页面级共享渐变：钻饰材料盘/列表预览与 NailArt 内渲染同一材质 -->
+              <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+                <defs>
+                  <radialGradient id="deco-gem" cx="0.35" cy="0.28" r="0.95">
+                    <stop offset="0" stop-color="#FFFFFF" />
+                    <stop offset="0.35" stop-color="#EAF2FC" />
+                    <stop offset="0.72" stop-color="#BDCFEA" />
+                    <stop offset="1" stop-color="#8FA8D2" />
+                  </radialGradient>
+                  <radialGradient id="deco-rose" cx="0.35" cy="0.28" r="0.95">
+                    <stop offset="0" stop-color="#FFFFFF" />
+                    <stop offset="0.4" stop-color="#FBE7EC" />
+                    <stop offset="1" stop-color="#E5A9BC" />
+                  </radialGradient>
+                  <linearGradient id="deco-gold" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#F7E6B2" />
+                    <stop offset="0.5" stop-color="#DFBE72" />
+                    <stop offset="1" stop-color="#B3924A" />
+                  </linearGradient>
+                  <radialGradient id="deco-pearl" cx="0.35" cy="0.3" r="0.95">
+                    <stop offset="0" stop-color="#FFFFFF" />
+                    <stop offset="0.55" stop-color="#FAF3ED" />
+                    <stop offset="1" stop-color="#DFC9BC" />
+                  </radialGradient>
+                </defs>
+              </svg>
               <div class="deco-tray">
                 <button v-for="t in DECAL_TYPES" :key="t.type"
                         class="deco-tray-item"
@@ -646,13 +672,13 @@ const DECO_PATHS = {
   marquise: 'M0,-7 C2.6,-4 3.4,-1 2.2,2.4 L0,7 L-2.2,2.4 C-3.4,-1 -2.6,-4 0,-7 Z',
   pearl: 'M0,-5.2 A5.2,5.2 0 1 1 -0.01,-5.2 Z'
 }
-const DECO_FILLS = {
-  star: '#EAF0FA', drop: '#DFE9F7', hex: '#E6EDF9',
-  bar: '#D9E4F2', round: '#EDF2FB', heart: '#F6D7DE',
-  oval: '#E3ECF8', triangle: '#DDE7F5', marquise: '#E8F0FA',
-  pearl: '#F6EFEA'
+// 钻饰预览材质（与 NailArt 内渲染一致，引用页面级共享渐变 defs）
+const DECO_GRADS = {
+  star: 'deco-gem', drop: 'deco-gem', hex: 'deco-gem', round: 'deco-gem',
+  oval: 'deco-gem', triangle: 'deco-gem', marquise: 'deco-gem',
+  heart: 'deco-rose', bar: 'deco-gold', pearl: 'deco-pearl'
 }
-function decoPreviewFill(type) { return DECO_FILLS[type] || '#EAF0FA' }
+function decoPreviewFill(type) { return `url(#${DECO_GRADS[type] || 'deco-gem'})` }
 const FRENCH_COLORS = ['#FFFFFF', '#F6D7DE', '#F3E0C0', '#D9E4F2', '#1F1B1A', '#E53E8C']
 
 // 单指完整配置（含所有编辑维度），旧数据缺字段时用此工厂补齐

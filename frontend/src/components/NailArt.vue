@@ -21,6 +21,41 @@
           <stop :offset="catB" stop-color="#E8EEF8" :stop-opacity="ceOpacity" />
           <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0" />
         </linearGradient>
+
+        <!-- 凝胶顶胶高光：宽幅柔光（自上而下淡出）+ 细长高光条 -->
+        <linearGradient :id="uid + '-sheen'" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"   stop-color="#FFFFFF" stop-opacity="0.38" />
+          <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.09" />
+          <stop offset="1"   stop-color="#FFFFFF" stop-opacity="0" />
+        </linearGradient>
+        <linearGradient :id="uid + '-shine'" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.25" />
+          <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.9" />
+          <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0.05" />
+        </linearGradient>
+
+        <!-- 钻饰材质：玻璃钻 / 玫瑰钻 / 金属 / 珍珠 -->
+        <radialGradient :id="uid + '-gem'" cx="0.35" cy="0.28" r="0.95">
+          <stop offset="0"    stop-color="#FFFFFF" />
+          <stop offset="0.35" stop-color="#EAF2FC" />
+          <stop offset="0.72" stop-color="#BDCFEA" />
+          <stop offset="1"    stop-color="#8FA8D2" />
+        </radialGradient>
+        <radialGradient :id="uid + '-rose'" cx="0.35" cy="0.28" r="0.95">
+          <stop offset="0"   stop-color="#FFFFFF" />
+          <stop offset="0.4" stop-color="#FBE7EC" />
+          <stop offset="1"   stop-color="#E5A9BC" />
+        </radialGradient>
+        <linearGradient :id="uid + '-gold'" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0"   stop-color="#F7E6B2" />
+          <stop offset="0.5" stop-color="#DFBE72" />
+          <stop offset="1"   stop-color="#B3924A" />
+        </linearGradient>
+        <radialGradient :id="uid + '-pearl'" cx="0.35" cy="0.3" r="0.95">
+          <stop offset="0"    stop-color="#FFFFFF" />
+          <stop offset="0.55" stop-color="#FAF3ED" />
+          <stop offset="1"    stop-color="#DFC9BC" />
+        </radialGradient>
       </defs>
 
       <g :clip-path="`url(#${uid}-clip)`">
@@ -73,11 +108,14 @@
           <path :d="DECO_PATHS[d.type] || DECO_PATHS.star" :fill="decoFill(d)" />
           <circle v-if="d.type !== 'bar'" :cx="-1.6" :cy="-1.8" r="1.1" fill="rgba(255,255,255,0.95)" />
         </g>
+
+        <!-- ⑦ 凝胶顶胶高光（随甲型裁剪，覆盖底色/款式/贴花/钻饰之上） -->
+        <path :d="sheenPath" :fill="`url(#${uid}-sheen)`" />
+        <path :d="shinePath" fill="none" :stroke="`url(#${uid}-shine)`" stroke-width="4.4" stroke-linecap="round" />
       </g>
 
-      <!-- ⑦ 光泽高光 + 描边 -->
-      <path :d="glossPath" fill="rgba(255,255,255,0.16)" />
-      <path :d="shapePath" fill="none" stroke="rgba(0,0,0,0.12)" stroke-width="1.5" />
+      <!-- 甲片描边 -->
+      <path :d="shapePath" fill="none" stroke="rgba(0,0,0,0.14)" stroke-width="1.5" />
     </svg>
     <span v-if="active" class="nail-ring"></span>
   </div>
@@ -113,24 +151,23 @@ const uid = 'na' + Math.random().toString(36).slice(2, 9)
 const svgRef = ref(null)
 
 // ---------- 甲型轮廓 ----------
+// 11 款差异化轮廓（viewBox 60x84，指尖朝上）：短圆/短方/圆 | 方/椭圆/杏仁/尖 | 中长椭圆 | 超长方/超长尖/超长圆尖
+// 差异化维度：长度比例 + 指尖形态（平/圆/尖）+ 侧边曲率，确保小尺寸预览也能一眼区分
 const PATHS = {
-  square: 'M16 6 H44 C50 6 54 10 54 16 V56 C54 68 44 78 30 78 C16 78 6 68 6 56 V16 C6 10 10 6 16 6 Z',
-  oval: 'M30 2 C18 2 10 12 10 24 C10 38 8 50 10 58 C12 68 20 78 30 78 C40 78 48 68 50 58 C52 50 50 38 50 24 C50 12 42 2 30 2 Z',
-  almond: 'M30 2 C20 2 12 12 12 24 C11 40 10 52 14 60 C18 70 24 76 30 76 C36 76 42 70 46 60 C50 52 49 40 48 24 C48 12 40 2 30 2 Z',
-  stiletto: 'M30 0 C22 2 14 12 13 26 C12 44 10 54 14 62 C18 72 24 78 30 78 C36 78 42 72 46 62 C50 54 48 44 47 26 C46 12 38 2 30 0 Z',
-  short: 'M30 8 C18 8 10 18 10 28 C10 42 8 52 10 58 C12 68 20 76 30 76 C40 76 48 68 50 58 C52 52 50 42 50 28 C50 18 42 8 30 8 Z',
-  // ---- 扩充甲型（对齐 Luna 风格的长短系列） ----
-  xsquare: 'M17 2 H43 C50 2 54 7 54 15 V58 C54 70 44 79 30 79 C16 79 6 70 6 58 V15 C6 7 10 2 17 2 Z',
-  xstiletto: 'M30 0 C24 1 15 10 14 24 C13 44 11 56 15 64 C19 73 25 79 30 79 C35 79 41 73 45 64 C49 56 47 44 46 24 C45 10 36 1 30 0 Z',
-  ballerina: 'M9 4 H51 L45 52 C44 66 38 76 30 76 C22 76 16 66 15 52 Z',
-  shortsq: 'M14 16 H46 C50 16 53 19 53 24 V54 C53 66 44 74 30 74 C16 74 7 66 7 54 V24 C7 19 10 16 14 16 Z',
-  round: 'M30 10 C43 10 52 20 52 34 C52 52 44 66 30 70 C16 66 8 52 8 34 C8 20 17 10 30 10 Z',
-  // ---- 二期扩充：少见甲型 ----
-  edge: 'M14 4 L26 4 L30 14 L34 4 L46 4 C50 4 52 8 52 14 V60 C52 72 44 78 30 78 C16 78 8 72 8 60 V14 C8 8 10 4 14 4 Z',
-  flare: 'M20 40 C20 18 24 6 30 6 C36 6 40 18 40 40 L56 66 C58 74 46 79 30 79 C14 79 2 74 4 66 Z',
-  russian: 'M15 0 H45 C50 0 53 4 53 10 V62 C53 74 43 81 30 81 C17 81 7 74 7 62 V10 C7 4 10 0 15 0 Z',
-  lipstick: 'M14 4 H40 C46 4 50 8 50 14 L54 44 C56 60 44 70 28 72 C14 74 6 66 8 52 Z',
-  moval: 'M30 6 C20 6 12 15 12 26 C12 40 10 52 12 60 C14 69 21 77 30 77 C39 77 46 69 48 60 C50 52 48 40 48 26 C48 15 40 6 30 6 Z',
+  // 短系列（category SHORT）
+  short:   'M 30 8 C 41 8 50 16 50 28 C 50 44 48 57 44 65 C 40 73 35 76 30 76 C 25 76 20 73 16 65 C 12 57 10 44 10 28 C 10 16 19 8 30 8 Z',
+  shortsq: 'M 16 15 Q 16 10 21 10 L 39 10 Q 44 10 44 15 L 44 52 C 44 66 38 74 30 74 C 22 74 16 66 16 52 Z',
+  round:   'M 30 8 C 44 8 52 18 52 32 C 52 48 42 61 30 65 C 18 61 8 48 8 32 C 8 18 16 8 30 8 Z',
+  // 中长系列（category MEDIUM）
+  square:  'M 14 12 Q 14 5 20 5 L 40 5 Q 46 5 46 12 L 46 56 C 46 70 39 78 30 78 C 21 78 14 70 14 56 Z',
+  oval:    'M 30 4 C 19 4 11 14 11 27 C 11 44 9 56 12 64 C 15 73 22 78 30 78 C 38 78 45 73 48 64 C 51 56 49 44 49 27 C 49 14 41 4 30 4 Z',
+  almond:  'M 30 6 C 23 9 16 18 14 31 C 12 46 14 58 18 65 C 22 72 26 76 30 76 C 34 76 38 72 42 65 C 46 58 48 46 46 31 C 44 18 37 9 30 6 Z',
+  stiletto:'M 30 0 C 24 5 17 16 14 30 C 11 45 13 58 18 66 C 22 73 26 78 30 78 C 34 78 38 73 42 66 C 47 58 49 45 46 30 C 43 16 36 5 30 0 Z',
+  moval:   'M 30 5 C 22 5 14 13 14 26 L 14 60 C 14 71 21 77 30 77 C 39 77 46 71 46 60 L 46 26 C 46 13 38 5 30 5 Z',
+  // 超长系列（category XLONG）
+  xsquare:   'M 17 10 Q 17 3 23 3 L 37 3 Q 43 3 43 10 L 43 62 C 43 74 37 80 30 80 C 23 80 17 74 17 62 Z',
+  xstiletto: 'M 30 0 C 21 4 17 14 17 26 L 17 56 C 17 70 22 79 30 80 C 38 79 43 70 43 56 L 43 26 C 43 14 39 4 30 0 Z',
+  russian:   'M 30 2 C 24 2 19 8 18 17 L 16 44 C 15 60 20 74 30 79 C 40 74 45 60 44 44 L 42 17 C 41 8 36 2 30 2 Z',
   default: 'M30 4 C18 4 10 14 10 26 C10 42 10 56 10 62 C10 72 18 78 30 78 C42 78 50 72 50 62 C50 56 50 42 50 26 C50 14 42 4 30 4 Z'
 }
 const shapePath = computed(() => {
@@ -145,10 +182,6 @@ const shapePath = computed(() => {
   else if (name.includes('超长尖')) key = 'xstiletto'
   else if (name.includes('俄罗斯')) key = 'russian'
   else if (name.includes('中长')) key = 'moval'
-  else if (name.includes('芭蕾') || name.includes('梯形')) key = 'ballerina'
-  else if (name.includes('折角')) key = 'edge'
-  else if (name.includes('喇叭')) key = 'flare'
-  else if (name.includes('唇形')) key = 'lipstick'
   else if (name.includes('短方')) key = 'shortsq'
   else if (name.includes('圆形')) key = 'round'
   else if (name.includes('方圆') || name.includes('方形')) key = 'square'
@@ -266,14 +299,14 @@ const DECO_PATHS = {
   marquise: 'M0,-7 C2.6,-4 3.4,-1 2.2,2.4 L0,7 L-2.2,2.4 C-3.4,-1 -2.6,-4 0,-7 Z',
   pearl: 'M0,-5.2 A5.2,5.2 0 1 1 -0.01,-5.2 Z'
 }
+// 材质 → 组件内渐变（宝石冷钻 / 玫瑰钻 / 金属 / 珍珠），替代旧平面色块
+const DECO_GRAD = {
+  star: '-gem', drop: '-gem', hex: '-gem', round: '-gem',
+  oval: '-gem', triangle: '-gem', marquise: '-gem',
+  heart: '-rose', bar: '-gold', pearl: '-pearl'
+}
 function decoFill(d) {
-  const map = {
-    star: '#EAF0FA', drop: '#DFE9F7', hex: '#E6EDF9',
-    bar: '#D9E4F2', round: '#EDF2FB', heart: '#F6D7DE',
-    oval: '#E3ECF8', triangle: '#DDE7F5', marquise: '#E8F0FA',
-    pearl: '#F6EFEA'
-  }
-  return map[d.type] || '#EAF0FA'
+  return `url(#${uid}${DECO_GRAD[d.type] || '-gem'})`
 }
 function decoTransform(d) {
   const s = (d.size || 12) / 12
@@ -324,8 +357,10 @@ function onPatDown(e, j) {
   window.addEventListener('pointerup', up)
 }
 
-// ---------- ⑦ 光泽 ----------
-const glossPath = 'M14 14 C20 8 30 6 38 10 C32 16 24 22 18 30 C13 24 12 18 14 14 Z'
+// ---------- ⑦ 顶胶高光 ----------
+// 宽幅柔光自指尖向下淡出；细长高光条偏左贯穿甲面（凝胶亮面质感，参照实拍甲片高光）
+const sheenPath = 'M 13 8 Q 30 2 47 8 Q 49 30 42 56 Q 30 61 18 56 Q 11 30 13 8 Z'
+const shinePath = 'M 24 13 C 22 23, 21 34, 23.5 46'
 </script>
 
 <style scoped>

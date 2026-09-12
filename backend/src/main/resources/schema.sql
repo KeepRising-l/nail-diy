@@ -270,7 +270,7 @@ CREATE TABLE `notice` (
 --     SHAPE/PATTERN_STYLE/DECOR 为代码注册素材（code 绑定前端渲染器，无图）
 -- =============================================================
 
--- 14.1 甲型（15 款，code 对应前端 NailArt PATHS 的 key；category 为长度系列）
+-- 14.1 甲型（11 款，code 对应前端 NailArt PATHS 的 key；category 为长度系列）
 INSERT INTO `material` (`type`, `code`, `name`, `image_url`, `category`, `attrs`, `sort`) VALUES
 ('SHAPE', 'short',     '短圆',     '/uploads/seed/shape_short.png',    'SHORT',  JSON_OBJECT('length','SHORT'),  1),
 ('SHAPE', 'shortsq',   '短方',     '',                                 'SHORT',  JSON_OBJECT('length','SHORT'),  2),
@@ -279,14 +279,10 @@ INSERT INTO `material` (`type`, `code`, `name`, `image_url`, `category`, `attrs`
 ('SHAPE', 'oval',      '椭圆',     '/uploads/seed/shape_oval.png',     'MEDIUM', JSON_OBJECT('length','MEDIUM'), 5),
 ('SHAPE', 'almond',    '杏仁',     '/uploads/seed/shape_almond.png',   'MEDIUM', JSON_OBJECT('length','MEDIUM'), 6),
 ('SHAPE', 'moval',     '中长椭圆', '',                                 'MEDIUM', JSON_OBJECT('length','MEDIUM'), 7),
-('SHAPE', 'ballerina', '芭蕾梯形', '',                                 'LONG',   JSON_OBJECT('length','LONG'),   8),
-('SHAPE', 'stiletto',  '尖型',     '/uploads/seed/shape_stiletto.png', 'LONG',   JSON_OBJECT('length','LONG'),   9),
-('SHAPE', 'lipstick',  '唇形',     '',                                 'LONG',   JSON_OBJECT('length','LONG'),   10),
-('SHAPE', 'xsquare',   '超长方',   '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  11),
-('SHAPE', 'xstiletto', '超长尖',   '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  12),
-('SHAPE', 'edge',      '折角',     '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  13),
-('SHAPE', 'flare',     '喇叭',     '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  14),
-('SHAPE', 'russian',   '俄罗斯方', '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  15);
+('SHAPE', 'stiletto',  '尖型',     '/uploads/seed/shape_stiletto.png', 'LONG',   JSON_OBJECT('length','LONG'),   8),
+('SHAPE', 'xsquare',   '超长方',   '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  9),
+('SHAPE', 'xstiletto', '超长尖',   '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  10),
+('SHAPE', 'russian',   '俄罗斯方', '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  11);
 
 -- 14.2 预设色卡（30 色，category 为色系，attrs.finish 为质感：SOLID纯色/JELLY冰透/GLITTER碎钻/CAT_EYE猫眼）
 INSERT INTO `material` (`type`, `name`, `color_code`, `category`, `attrs`, `sort`) VALUES
