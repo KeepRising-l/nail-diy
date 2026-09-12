@@ -1,6 +1,6 @@
 <template>
   <!-- 单枚甲片：SVG 分层渲染（底色→猫眼→法式→波点豹纹→贴花→钻饰→光泽→描边）；纯装饰，语义由宿主元素提供 -->
-  <div class="nail-unit" :class="{ active }" aria-hidden="true" @click="$emit('select')">
+  <div class="nail-unit" :class="{ active, embedded: !outlined }" aria-hidden="true" @click="$emit('select')">
     <svg ref="svgRef" :viewBox="'0 0 60 ' + HEIGHT" class="nail-svg" :style="{ width: width + 'px' }">
       <defs>
         <clipPath :id="uid + '-clip'"><path :d="shapePath" /></clipPath>
@@ -117,8 +117,8 @@
         <path :d="shinePath" fill="none" :stroke="`url(#${uid}-shine)`" stroke-width="4.4" stroke-linecap="round" />
       </g>
 
-      <!-- 甲片描边 -->
-      <path :d="shapePath" fill="none" stroke="rgba(0,0,0,0.14)" stroke-width="1.5" />
+      <!-- 甲片描边（手模嵌入态不画描边，靠投影与甲床贴合表现边缘） -->
+      <path v-if="outlined" :d="shapePath" fill="none" stroke="rgba(0,0,0,0.14)" stroke-width="1.5" />
     </svg>
     <span v-if="active" class="nail-ring"></span>
   </div>
@@ -145,7 +145,8 @@ const props = defineProps({
   decorations: { type: Array, default: () => [] }, // [{ id, type, x%, y%, size, angle }]
   patternPos: { type: Object, default: null },   // { [图案id]: { x%, y% } } 拖放落点（未记录的回退默认槽位）
   patternStyle: { type: Object, default: null }, // { code, params } 参数化款式（见 engine/patternStyles.js）
-  length: { type: Number, default: 1 }           // 长度系数 0.6~1.3，独立于甲型的设计维度
+  length: { type: Number, default: 1 },          // 长度系数 0.6~1.6，独立于甲型的设计维度
+  outlined: { type: Boolean, default: true }     // 是否绘制描边（手模嵌入态传 false，改用柔和投影）
 })
 const emit = defineEmits(['select', 'moveDeco', 'movePattern'])
 // 组件实例唯一 id（SVG defs 防串色）
@@ -160,45 +161,45 @@ const CONTOURS = {
   // 圆形：前端呈自然圆弧，甲面饱满
   round(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 10 4 C 8 ${m} 10 ${f1(t - 16)} 15 ${f1(t - 8)} Q 30 ${f1(t + 6)} 45 ${f1(t - 8)} C 50 ${f1(t - 16)} 52 ${m} 50 4 C 42 0 18 0 10 4 Z`
+    return `M 10 4 C 8 ${m} 10 ${f1(t - 16)} 15 ${f1(t - 8)} Q 30 ${f1(t + 6)} 45 ${f1(t - 8)} C 50 ${f1(t - 16)} 52 ${m} 50 4 C 40 8 20 8 10 4 Z`
   },
   // 方圆形：整体偏方，但边角圆润（squoval）
   squoval(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 11 4 C 10 ${m} 11 ${f1(t - 14)} 15 ${f1(t - 7)} Q 30 ${f1(t + 3)} 45 ${f1(t - 7)} C 49 ${f1(t - 14)} 50 ${m} 49 4 C 42 0 18 0 11 4 Z`
+    return `M 11 4 C 10 ${m} 11 ${f1(t - 14)} 15 ${f1(t - 7)} Q 30 ${f1(t + 3)} 45 ${f1(t - 7)} C 49 ${f1(t - 14)} 50 ${m} 49 4 C 40 8 20 8 11 4 Z`
   },
   // 方形：前端平直，边角较明显
   square(k) {
     const t = 76 * k + 4
-    return `M 9 4 L 9 ${f1(t - 5)} Q 9 ${f1(t)} 14 ${f1(t)} L 46 ${f1(t)} Q 51 ${f1(t)} 51 ${f1(t - 5)} L 51 4 C 43 0 17 0 9 4 Z`
+    return `M 9 4 L 9 ${f1(t - 5)} Q 9 ${f1(t)} 14 ${f1(t)} L 46 ${f1(t)} Q 51 ${f1(t)} 51 ${f1(t - 5)} L 51 4 C 41 8 19 8 9 4 Z`
   },
   // 椭圆形：整体修长，前端为柔和椭圆
   oval(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 11 4 C 9 ${m} 12 ${f1(t - 12)} 18 ${f1(t - 4)} Q 30 ${f1(t + 4)} 42 ${f1(t - 4)} C 48 ${f1(t - 12)} 51 ${m} 49 4 C 41 0 19 0 11 4 Z`
+    return `M 11 4 C 9 ${m} 12 ${f1(t - 12)} 18 ${f1(t - 4)} Q 30 ${f1(t + 4)} 42 ${f1(t - 4)} C 48 ${f1(t - 12)} 51 ${m} 49 4 C 39 8 21 8 11 4 Z`
   },
   // 杏仁形：两侧逐渐收窄，前端圆润尖细
   almond(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 12 4 C 10 ${m} 15 ${f1(t - 18)} 24 ${f1(t - 5)} Q 30 ${f1(t + 2)} 36 ${f1(t - 5)} C 45 ${f1(t - 18)} 50 ${m} 48 4 C 40 0 20 0 12 4 Z`
+    return `M 12 4 C 10 ${m} 15 ${f1(t - 18)} 24 ${f1(t - 5)} Q 30 ${f1(t + 2)} 36 ${f1(t - 5)} C 45 ${f1(t - 18)} 50 ${m} 48 4 C 38 8 22 8 12 4 Z`
   },
   // 芭蕾形：两侧收窄，前端平直，类似芭蕾舞鞋（coffin）
   ballerina(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 8 4 C 8 ${m} 12 ${f1(t - 18)} 18 ${f1(t - 8)} Q 20 ${f1(t)} 24 ${f1(t)} L 36 ${f1(t)} Q 40 ${f1(t)} 42 ${f1(t - 8)} C 48 ${f1(t - 18)} 52 ${m} 52 4 C 44 0 16 0 8 4 Z`
+    return `M 8 4 C 8 ${m} 12 ${f1(t - 18)} 18 ${f1(t - 8)} Q 20 ${f1(t)} 24 ${f1(t)} L 36 ${f1(t)} Q 40 ${f1(t)} 42 ${f1(t - 8)} C 48 ${f1(t - 18)} 52 ${m} 52 4 C 42 8 18 8 8 4 Z`
   },
   // 尖形：两侧明显收窄，前端形成尖角
   stiletto(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 12 4 C 10 ${m} 17 ${f1(t - 22)} 27 ${f1(t - 3)} L 30 ${f1(t)} L 33 ${f1(t - 3)} C 43 ${f1(t - 22)} 50 ${m} 48 4 C 40 0 20 0 12 4 Z`
+    return `M 12 4 C 10 ${m} 17 ${f1(t - 22)} 27 ${f1(t - 3)} L 30 ${f1(t)} L 33 ${f1(t - 3)} C 43 ${f1(t - 22)} 50 ${m} 48 4 C 38 8 22 8 12 4 Z`
   },
   // 俄罗斯方：整体修长，两侧略微收窄，前端保持平直
   russian(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 13 4 C 12 ${m} 14 ${f1(t - 16)} 17 ${f1(t - 6)} Q 18 ${f1(t)} 22 ${f1(t)} L 38 ${f1(t)} Q 42 ${f1(t)} 43 ${f1(t - 6)} C 46 ${f1(t - 16)} 48 ${m} 47 4 C 40 0 20 0 13 4 Z`
+    return `M 13 4 C 12 ${m} 14 ${f1(t - 16)} 17 ${f1(t - 6)} Q 18 ${f1(t)} 22 ${f1(t)} L 38 ${f1(t)} Q 42 ${f1(t)} 43 ${f1(t - 6)} C 46 ${f1(t - 16)} 48 ${m} 47 4 C 38 8 22 8 13 4 Z`
   }
 }
-const kLen = computed(() => Math.min(1.3, Math.max(0.6, Number(props.length) || 1)))
+const kLen = computed(() => Math.min(1.6, Math.max(0.6, Number(props.length) || 1)))
 const HEIGHT = computed(() => Math.round(76 * kLen.value + 8))
 const shapePath = computed(() => {
   const gen = CONTOURS[props.shape?.code]
@@ -399,6 +400,8 @@ const shinePath = computed(() => {
 
 <style scoped>
 .nail-unit { position: relative; cursor: pointer; }
+/* 嵌入态（手模）：无描边，仅极柔和的自然投影贴合甲床 */
+.nail-unit.embedded .nail-svg { filter: drop-shadow(0 2px 3px rgba(120, 80, 50, 0.20)); }
 .nail-svg { display: block; transition: transform .18s ease; }
 .nail-unit:hover .nail-svg { transform: translateY(-3px); }
 .nail-ring {

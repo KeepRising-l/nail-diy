@@ -55,6 +55,7 @@
                            :index="index"
                            :width="width"
                            :length="finger.length"
+                           :outlined="false"
                            :gradient="finger.gradient"
                            :cat-eye="finger.catEye"
                            :adjust="finger.adjust"
@@ -230,7 +231,7 @@
                 <div class="fx-body">
                   <div class="slider-row len-row">
                     <span class="fx-label">短</span>
-                    <input type="range" min="0.6" max="1.3" step="0.05"
+                    <input type="range" min="0.6" max="1.6" step="0.05"
                            v-model.number="fingers[activeFinger].length" @change="pushHistory" />
                     <span class="fx-label">长</span>
                   </div>
@@ -955,7 +956,7 @@ const filteredPatterns = computed(() => patternCategory.value === 'ALL'
 
 function selectShape(id) { if (active.value.shapeId !== id) { active.value.shapeId = id; pushHistory() } }
 // 长度档位文案（短/自然/标准/加长/超长）
-const LENGTH_LABELS = [[0.75, '短'], [0.95, '自然'], [1.1, '标准'], [1.2, '加长'], [9, '超长']]
+const LENGTH_LABELS = [[0.75, '短'], [0.95, '自然'], [1.1, '标准'], [1.3, '加长'], [1.45, '超长'], [9, '极长']]
 const lengthLabel = computed(() => {
   const v = active.value?.length || 1
   return (LENGTH_LABELS.find(l => v < l[0]) || LENGTH_LABELS[3])[1]
