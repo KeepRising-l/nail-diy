@@ -327,18 +327,26 @@ INSERT INTO `material` (`type`, `code`, `name`, `category`, `tags`, `attrs`, `so
 ('PATTERN_STYLE', 'GEO',     '几何拼色',   'BASICS',    '几何,拼色,简约', JSON_OBJECT('paramsSchema', JSON_ARRAY(JSON_OBJECT('key','color2','label','拼色','type','color','default','#FFFFFF'), JSON_OBJECT('key','mode','label','分割方式','type','select','options',JSON_ARRAY('half','diagonal','tip'),'default','diagonal'))), 9),
 ('PATTERN_STYLE', 'STARS',   '星星点缀',   'BASICS',    '星星,梦幻,点缀', JSON_OBJECT('paramsSchema', JSON_ARRAY(JSON_OBJECT('key','color','label','星色(留空自动)','type','color','default',''), JSON_OBJECT('key','count','label','数量','type','range','min',2,'max',8,'default',4), JSON_OBJECT('key','size','label','星径','type','range','min',1.5,'max',4,'default',2.4))), 10);
 
--- 14.4 矢量装饰件（code 绑定前端 DECO_PATHS；attrs.material 为材质分类）
+-- 14.4 钻饰素材（DECOR=立体饰品；code 绑定前端 decoGems 引擎，颜色变体用后缀）
+--       category：ROUND圆钻 / FANCY异形钻 / PEARL珍珠 / METAL金属
 INSERT INTO `material` (`type`, `code`, `name`, `category`, `attrs`, `sort`) VALUES
-('DECOR', 'star',     '星形钻',   'GEM',   JSON_OBJECT('material','水钻'), 1),
-('DECOR', 'round',    '圆钻',     'GEM',   JSON_OBJECT('material','水钻'), 2),
-('DECOR', 'drop',     '水滴钻',   'GEM',   JSON_OBJECT('material','水钻'), 3),
-('DECOR', 'marquise', '马眼钻',   'GEM',   JSON_OBJECT('material','水钻'), 4),
-('DECOR', 'oval',     '椭圆钻',   'GEM',   JSON_OBJECT('material','水钻'), 5),
-('DECOR', 'hex',      '六边钻',   'GEM',   JSON_OBJECT('material','水钻'), 6),
-('DECOR', 'triangle', '三角钻',   'GEM',   JSON_OBJECT('material','水钻'), 7),
-('DECOR', 'heart',    '爱心钻',   'GEM',   JSON_OBJECT('material','水钻'), 8),
-('DECOR', 'bar',      '长条金属', 'METAL', JSON_OBJECT('material','金属'), 9),
-('DECOR', 'pearl',    '珍珠',     'PEARL', JSON_OBJECT('material','珍珠'), 10);
+('DECOR', 'round',           '水晶圆钻', 'ROUND', JSON_OBJECT('material','水钻'), 1),
+('DECOR', 'round-pink',      '粉钻',     'ROUND', JSON_OBJECT('material','水钻'), 2),
+('DECOR', 'round-champagne', '香槟钻',   'ROUND', JSON_OBJECT('material','水钻'), 3),
+('DECOR', 'round-ab',        'AB 彩钻',  'ROUND', JSON_OBJECT('material','水钻'), 4),
+('DECOR', 'round-smoke',     '烟灰钻',   'ROUND', JSON_OBJECT('material','水钻'), 5),
+('DECOR', 'drop',            '水滴钻',   'FANCY', JSON_OBJECT('material','水钻'), 6),
+('DECOR', 'marquise',        '马眼钻',   'FANCY', JSON_OBJECT('material','水钻'), 7),
+('DECOR', 'oval',            '椭圆钻',   'FANCY', JSON_OBJECT('material','水钻'), 8),
+('DECOR', 'heart',           '心形钻',   'FANCY', JSON_OBJECT('material','水钻'), 9),
+('DECOR', 'star',            '星形钻',   'FANCY', JSON_OBJECT('material','水钻'), 10),
+('DECOR', 'hex',             '六边钻',   'FANCY', JSON_OBJECT('material','水钻'), 11),
+('DECOR', 'triangle',        '三角钻',   'FANCY', JSON_OBJECT('material','水钻'), 12),
+('DECOR', 'pearl',           '白珍珠',   'PEARL', JSON_OBJECT('material','珍珠'), 13),
+('DECOR', 'pearl-pink',      '粉珍珠',   'PEARL', JSON_OBJECT('material','珍珠'), 14),
+('DECOR', 'pearl-noir',      '黑珍珠',   'PEARL', JSON_OBJECT('material','珍珠'), 15),
+('DECOR', 'bar',             '金属条',   'METAL', JSON_OBJECT('material','金属'), 16),
+('DECOR', 'ring-gold',       '金属圆环', 'METAL', JSON_OBJECT('material','金属'), 17);
 
 -- 14.45 指甲油效果覆盖层（OVERLAY，透明 PNG 图层；过渡期 image_url 为空走前端参数化渲染）
 --       category 为子类：GLOSS光泽/PEARL珠光/SHIMMER闪耀/EFFECT炫光/SPECIAL特殊

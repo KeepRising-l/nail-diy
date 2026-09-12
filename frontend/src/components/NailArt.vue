@@ -4,6 +4,8 @@
     <svg ref="svgRef" :viewBox="'0 0 60 ' + HEIGHT" class="nail-svg" :style="{ width: width + 'px' }">
       <defs>
         <clipPath :id="uid + '-clip'"><path :d="shapePath" /></clipPath>
+        <!-- 钻饰切面裁剪（按基础形） -->
+        <clipPath v-for="(p, key) in GEM_PATHS" :key="'dcp' + key" :id="uid + '-dc-' + key"><path :d="p" /></clipPath>
 
         <!-- 两色渐变底 -->
         <linearGradient v-if="isGradient" :id="uid + '-grad'" x1="0" y1="0" x2="0" y2="1">
@@ -115,13 +117,16 @@
                  :width="18" :height="18" preserveAspectRatio="none" />
         </g>
 
-        <!-- ⑥ 钻饰装饰（可拖动） -->
-        <g v-for="(d, k) in decorations" :key="'deco' + d.id"
-           :transform="decoTransform(d)"
+        <!-- ⑥ 钻饰装饰（可拖动）：切面水晶渲染（底色→冠部切面→折射→边缘光→高光） -->
+        <g v-for="(dr, k) in decoRenders" :key="'deco' + dr.d.id"
+           :transform="decoTransform(dr.d)"
            class="deco-item"
            @pointerdown.stop.prevent="onDecoDown($event, k)">
-          <path :d="DECO_PATHS[d.type] || DECO_PATHS.star" :fill="decoFill(d)" />
-          <circle v-if="d.type !== 'bar'" :cx="-1.6" :cy="-1.8" r="1.1" fill="rgba(255,255,255,0.95)" />
+          <path :d="dr.gem.base" :fill="dr.gem.tint" fill-rule="evenodd" />
+          <g :clip-path="`url(#${uid}-dc-${dr.baseKey})`">
+            <path v-for="(el, i) in dr.gem.facets" v-bind="restAttrs(el)" :key="'fc' + i" />
+          </g>
+          <path v-for="(el, i) in dr.gem.finish" v-bind="restAttrs(el)" :key="'fi' + i" />
         </g>
 
         <!-- ⑦ 凝胶顶胶高光（随甲型裁剪，覆盖底色/款式/贴花/钻饰之上） -->
@@ -141,6 +146,7 @@ import { computed, ref } from 'vue'
 import { adjustColor, seededRandom, isDarkColor } from '../utils/color'
 import { genPattern } from '../engine/patternStyles'
 import { genOverlay } from '../engine/polishOverlays'
+import { decoGem, GEM_PATHS } from '../engine/decoGems'
 
 const props = defineProps({
   shape: { type: Object, default: null },   // { name } 甲型素材
@@ -330,39 +336,11 @@ const dotList = computed(() => {
   return list
 })
 
-// ---------- ⑥ 钻饰 ----------
-// 六种钻饰 path（以原点为中心，基准尺寸约 ±6）
-function starPts() {
-  const pts = []
-  for (let i = 0; i < 10; i++) {
-    const ang = -Math.PI / 2 + (i * Math.PI) / 5
-    const r = i % 2 === 0 ? 6 : 2.6
-    pts.push(`${(Math.cos(ang) * r).toFixed(1)},${(Math.sin(ang) * r).toFixed(1)}`)
-  }
-  return 'M' + pts.join(' L') + ' Z'
-}
-const DECO_PATHS = {
-  star: starPts(),
-  drop: 'M0,-6 C3,-2 5.5,1 5.5,3.2 A5.5,5.5 0 1 1 -5.5,3.2 C-5.5,1 -3,-2 0,-6 Z',
-  hex: 'M-5.2,-3 L0,-6 L5.2,-3 L5.2,3 L0,6 L-5.2,3 Z',
-  bar: 'M-6,-2.5 L6,-2.5 L6,2.5 L-6,2.5 Z',
-  round: 'M0,-5.6 A5.6,5.6 0 1 1 -0.01,-5.6 Z',
-  heart: 'M0,5.5 C-6,1 -6.5,-2.5 -3.6,-4.4 C-1.8,-5.6 0,-4.4 0,-2.8 C0,-4.4 1.8,-5.6 3.6,-4.4 C6.5,-2.5 6,1 0,5.5 Z',
-  // ---- 二期扩充 ----
-  oval: 'M0,-6.5 A4.4,6.5 0 1 1 -0.01,-6.5 Z',
-  triangle: 'M0,-6 L5.8,4.5 L-5.8,4.5 Z',
-  marquise: 'M0,-7 C2.6,-4 3.4,-1 2.2,2.4 L0,7 L-2.2,2.4 C-3.4,-1 -2.6,-4 0,-7 Z',
-  pearl: 'M0,-5.2 A5.2,5.2 0 1 1 -0.01,-5.2 Z'
-}
-// 材质 → 组件内渐变（宝石冷钻 / 玫瑰钻 / 金属 / 珍珠），替代旧平面色块
-const DECO_GRAD = {
-  star: '-gem', drop: '-gem', hex: '-gem', round: '-gem',
-  oval: '-gem', triangle: '-gem', marquise: '-gem',
-  heart: '-rose', bar: '-gold', pearl: '-pearl'
-}
-function decoFill(d) {
-  return `url(#${uid}${DECO_GRAD[d.type] || '-gem'})`
-}
+// ---------- ⑥ 钻饰（切面水晶渲染，见 engine/decoGems.js） ----------
+const decoRenders = computed(() => (props.decorations || []).map(d => {
+  const baseKey = GEM_PATHS[d.type] ? d.type : d.type.split('-')[0]
+  return { d, gem: decoGem(d.type), baseKey }
+}))
 function decoTransform(d) {
   const s = (d.size || 12) / 12
   return `translate(${(d.x / 100) * 60} ${(d.y / 100) * HEIGHT.value}) rotate(${d.angle || 0}) scale(${s})`

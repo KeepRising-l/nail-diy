@@ -642,40 +642,18 @@
             <!-- 钻饰：材料盘 + 当前指甲装饰管理 -->
             <template v-if="tab === 'ornament'">
               <p class="section-desc">点击钻饰添加到 <b>第 {{ activeFinger + 1 }} · {{ FINGER_NAMES[activeFinger] }}</b>，在预览区拖动调整位置：</p>
-              <!-- 页面级共享渐变：钻饰材料盘/列表预览与 NailArt 内渲染同一材质 -->
-              <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-                <defs>
-                  <radialGradient id="deco-gem" cx="0.35" cy="0.28" r="0.95">
-                    <stop offset="0" stop-color="#FFFFFF" />
-                    <stop offset="0.35" stop-color="#EAF2FC" />
-                    <stop offset="0.72" stop-color="#BDCFEA" />
-                    <stop offset="1" stop-color="#8FA8D2" />
-                  </radialGradient>
-                  <radialGradient id="deco-rose" cx="0.35" cy="0.28" r="0.95">
-                    <stop offset="0" stop-color="#FFFFFF" />
-                    <stop offset="0.4" stop-color="#FBE7EC" />
-                    <stop offset="1" stop-color="#E5A9BC" />
-                  </radialGradient>
-                  <linearGradient id="deco-gold" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#F7E6B2" />
-                    <stop offset="0.5" stop-color="#DFBE72" />
-                    <stop offset="1" stop-color="#B3924A" />
-                  </linearGradient>
-                  <radialGradient id="deco-pearl" cx="0.35" cy="0.3" r="0.95">
-                    <stop offset="0" stop-color="#FFFFFF" />
-                    <stop offset="0.55" stop-color="#FAF3ED" />
-                    <stop offset="1" stop-color="#DFC9BC" />
-                  </radialGradient>
-                </defs>
-              </svg>
+              <div class="cat-row">
+                <button v-for="c in DECO_CATS" :key="c.value" class="cat-chip"
+                        :class="{ active: decoCat === c.value }"
+                        @click="decoCat = c.value">{{ c.label }}</button>
+              </div>
               <div class="deco-tray">
-                <button v-for="t in DECAL_TYPES" :key="t.type"
+                <button v-for="t in filteredDecals" :key="t.type"
                         class="deco-tray-item"
                         draggable="true" @dragstart="onDragStart($event, { kind: 'deco', type: t.type })"
                         @click="addDecoration(t.type)">
                   <svg width="34" height="34" viewBox="-8 -8 16 16">
-                    <path :d="DECO_PATHS[t.type]" :fill="decoPreviewFill(t.type)" stroke="rgba(120,130,150,.45)" stroke-width="0.5" />
-                    <circle cx="-1.6" cy="-1.8" r="1.1" fill="rgba(255,255,255,0.95)" />
+                    <path v-for="(el, i) in gemPreviewEls(t.type)" :key="'tp' + i" v-bind="el" />
                   </svg>
                   <span>{{ t.name }}</span>
                 </button>
@@ -688,7 +666,7 @@
                   <div v-for="(d, k) in fingers[activeFinger].decorations" :key="d.id" class="deco-item-row">
                     <div class="deco-item-head">
                       <svg width="20" height="20" viewBox="-8 -8 16 16">
-                        <path :d="DECO_PATHS[d.type]" :fill="decoPreviewFill(d.type)" stroke="rgba(120,130,150,.45)" stroke-width="0.5" />
+                        <path v-for="(el, i) in gemPreviewEls(d.type)" :key="'li' + i" v-bind="el" />
                       </svg>
                       <span class="deco-name">{{ (DECAL_TYPES.find(t => t.type === d.type) || {}).name || d.type }}</span>
                       <button class="deco-del" @click="removeDecoration(k)" title="删除">×</button>
@@ -723,6 +701,7 @@ import request from '../utils/request'
 import NailArt from '../components/NailArt.vue'
 import HandModel from '../components/HandModel.vue'
 import { hexToHsl, hslToHex } from '../utils/color'
+import { decoPreview } from '../engine/decoGems'
 
 // 简单的空状态组件（避免引入 el-empty 造成样式突兀）
 const emptyBox = {
@@ -751,46 +730,41 @@ const TABS = [
 const FINGER_NAMES       = ['小指', '无名指', '中指', '食指', '大拇指']
 const ZOOMED_NAIL_W = 210
 const DECAL_TYPES = [
-  { type: 'star',  name: '星星钻' },
-  { type: 'drop',  name: '水滴钻' },
-  { type: 'hex',   name: '六边钻' },
-  { type: 'bar',   name: '长方钻' },
-  { type: 'round', name: '圆钻' },
-  { type: 'heart', name: '爱心' },
-  { type: 'oval',     name: '椭圆钻' },
-  { type: 'triangle', name: '三角钻' },
-  { type: 'marquise', name: '马眼钻' },
-  { type: 'pearl',    name: '珍珠' }
+  // ROUND 圆钻（色变体）
+  { type: 'round',           name: '水晶圆钻', cat: 'ROUND' },
+  { type: 'round-pink',      name: '粉钻',     cat: 'ROUND' },
+  { type: 'round-champagne', name: '香槟钻',   cat: 'ROUND' },
+  { type: 'round-ab',        name: 'AB 彩钻',  cat: 'ROUND' },
+  { type: 'round-smoke',     name: '烟灰钻',   cat: 'ROUND' },
+  // FANCY 异形钻
+  { type: 'drop',     name: '水滴钻', cat: 'FANCY' },
+  { type: 'marquise', name: '马眼钻', cat: 'FANCY' },
+  { type: 'oval',     name: '椭圆钻', cat: 'FANCY' },
+  { type: 'heart',    name: '心形钻', cat: 'FANCY' },
+  { type: 'star',     name: '星形钻', cat: 'FANCY' },
+  { type: 'hex',      name: '六边钻', cat: 'FANCY' },
+  { type: 'triangle', name: '三角钻', cat: 'FANCY' },
+  // PEARL 珍珠
+  { type: 'pearl',      name: '白珍珠', cat: 'PEARL' },
+  { type: 'pearl-pink', name: '粉珍珠', cat: 'PEARL' },
+  { type: 'pearl-noir', name: '黑珍珠', cat: 'PEARL' },
+  // METAL 金属
+  { type: 'bar',       name: '金属条',   cat: 'METAL' },
+  { type: 'ring-gold', name: '金属圆环', cat: 'METAL' }
 ]
-// 钻饰矢量轮廓（与 NailArt.vue 保持一致，用于材料盘/列表预览）
-function decoStarPts() {
-  const pts = []
-  for (let i = 0; i < 10; i++) {
-    const ang = -Math.PI / 2 + (i * Math.PI) / 5
-    const r = i % 2 === 0 ? 6 : 2.6
-    pts.push(`${(Math.cos(ang) * r).toFixed(1)},${(Math.sin(ang) * r).toFixed(1)}`)
-  }
-  return 'M' + pts.join(' L') + ' Z'
-}
-const DECO_PATHS = {
-  star: decoStarPts(),
-  drop: 'M0,-6 C3,-2 5.5,1 5.5,3.2 A5.5,5.5 0 1 1 -5.5,3.2 C-5.5,1 -3,-2 0,-6 Z',
-  hex: 'M-5.2,-3 L0,-6 L5.2,-3 L5.2,3 L0,6 L-5.2,3 Z',
-  bar: 'M-6,-2.5 L6,-2.5 L6,2.5 L-6,2.5 Z',
-  round: 'M0,-5.6 A5.6,5.6 0 1 1 -0.01,-5.6 Z',
-  heart: 'M0,5.5 C-6,1 -6.5,-2.5 -3.6,-4.4 C-1.8,-5.6 0,-4.4 0,-2.8 C0,-4.4 1.8,-5.6 3.6,-4.4 C6.5,-2.5 6,1 0,5.5 Z',
-  oval: 'M0,-6.5 A4.4,6.5 0 1 1 -0.01,-6.5 Z',
-  triangle: 'M0,-6 L5.8,4.5 L-5.8,4.5 Z',
-  marquise: 'M0,-7 C2.6,-4 3.4,-1 2.2,2.4 L0,7 L-2.2,2.4 C-3.4,-1 -2.6,-4 0,-7 Z',
-  pearl: 'M0,-5.2 A5.2,5.2 0 1 1 -0.01,-5.2 Z'
-}
-// 钻饰预览材质（与 NailArt 内渲染一致，引用页面级共享渐变 defs）
-const DECO_GRADS = {
-  star: 'deco-gem', drop: 'deco-gem', hex: 'deco-gem', round: 'deco-gem',
-  oval: 'deco-gem', triangle: 'deco-gem', marquise: 'deco-gem',
-  heart: 'deco-rose', bar: 'deco-gold', pearl: 'deco-pearl'
-}
-function decoPreviewFill(type) { return `url(#${DECO_GRADS[type] || 'deco-gem'})` }
+// 钻饰预览（与 NailArt 内渲染同引擎，见 engine/decoGems.js）
+const DECO_CATS = [
+  { value: 'ALL', label: '全部' },
+  { value: 'ROUND', label: '圆钻' },
+  { value: 'FANCY', label: '异形钻' },
+  { value: 'PEARL', label: '珍珠' },
+  { value: 'METAL', label: '金属' }
+]
+const decoCat = ref('ALL')
+const filteredDecals = computed(() => decoCat.value === 'ALL'
+  ? DECAL_TYPES
+  : DECAL_TYPES.filter(t => t.cat === decoCat.value))
+function gemPreviewEls(type) { return decoPreview(type) }
 const FRENCH_COLORS = ['#FFFFFF', '#F6D7DE', '#F3E0C0', '#D9E4F2', '#1F1B1A', '#E53E8C']
 
 // 单指完整配置（含所有编辑维度），旧数据缺字段时用此工厂补齐
