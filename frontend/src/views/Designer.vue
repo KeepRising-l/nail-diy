@@ -47,14 +47,14 @@
               <HandModel :active-finger="activeFinger" :fingers="fingers"
                          @select="activeFinger = $event"
                          @drop="onHandDrop">
-                <template #default="{ finger, index, width }">
+                <template #default="{ finger, index, width, fit }">
                   <NailArt :shape="shapeById(finger.shapeId)"
                            :color="colorCodeOf(finger)"
                            :patterns="patternsOf(finger)"
                            :active="index === activeFinger"
                            :index="index"
                            :width="width"
-                           :length="finger.length"
+                           :length="finger.length * fit"
                            :outlined="false"
                            :overlays="finger.overlays"
                            :overlay-catalog="overlays"
@@ -110,7 +110,6 @@
                   @move-deco="p => onDecoMovedAt(i, p)"
                   @move-pattern="p => onPatMovedAt(i, p)"
                 />
-                <span class="slot-num">{{ FINGER_NAMES[i] }}</span>
               </div>
             </div>
 
@@ -1464,15 +1463,6 @@ async function save() {
 .nail-slot.active { background: rgba(255,255,255,0.55); }
 /* 拖拽悬停高亮：可投放到该甲片 */
 .nail-slot.over { box-shadow: 0 0 0 3px rgba(229, 62, 140, 0.55); }
-.slot-num {
-  display: block;
-  text-align: center;
-  margin-top: 6px;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 700;
-  color: rgba(31, 27, 26, 0.5);
-}
 
 
 /* 工具条 */

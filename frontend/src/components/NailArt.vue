@@ -137,7 +137,6 @@
       <!-- 甲片描边（手模嵌入态不画描边，靠投影与甲床贴合表现边缘） -->
       <path v-if="outlined" :d="shapePath" fill="none" stroke="rgba(0,0,0,0.14)" stroke-width="1.5" />
     </svg>
-    <span v-if="active" class="nail-ring"></span>
   </div>
 </template>
 
@@ -178,46 +177,49 @@ const svgRef = ref(null)
 // 画布约定：y=0 为甲根（指根侧），y 沿指甲长轴朝指尖增大；viewBox 高度随长度伸缩
 // 甲型 = 8 种纯轮廓（决定前端形状）；长度 = 独立系数 k∈[0.6,1.3]（决定甲片长短）
 const f1 = v => Number(v.toFixed(1))
+// 画布约定：y=0 为甲根（指根侧），y 沿指甲长轴朝指尖增大；viewBox 高度随长度伸缩
+// 甲型 = 8 种纯轮廓（决定前端形状）；长度 = 独立系数 k∈[0.6,1.6]（决定甲片长短）
+// 轮廓带轻微侧边收窄与较大的尖端圆弧，保证在小尺寸（手模 ~15px 宽）下仍读得出甲型而非矩形
 const CONTOURS = {
   // 圆形：前端呈自然圆弧，甲面饱满
   round(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 10 4 C 8 ${m} 10 ${f1(t - 16)} 15 ${f1(t - 8)} Q 30 ${f1(t + 6)} 45 ${f1(t - 8)} C 50 ${f1(t - 16)} 52 ${m} 50 4 C 40 8 20 8 10 4 Z`
+    return `M 10.5 4 C 8.5 ${m} 10 ${f1(t - 14)} 16 ${f1(t - 6)} Q 30 ${f1(t + 7)} 44 ${f1(t - 6)} C 50 ${f1(t - 14)} 51.5 ${m} 49.5 4 C 40 7.5 20 7.5 10.5 4 Z`
   },
   // 方圆形：整体偏方，但边角圆润（squoval）
   squoval(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 11 4 C 10 ${m} 11 ${f1(t - 14)} 15 ${f1(t - 7)} Q 30 ${f1(t + 3)} 45 ${f1(t - 7)} C 49 ${f1(t - 14)} 50 ${m} 49 4 C 40 8 20 8 11 4 Z`
+    return `M 11 4 C 9.5 ${m} 11 ${f1(t - 12)} 17 ${f1(t - 5)} Q 30 ${f1(t + 4)} 43 ${f1(t - 5)} C 49 ${f1(t - 12)} 50.5 ${m} 49 4 C 40 7.5 20 7.5 11 4 Z`
   },
-  // 方形：前端平直，边角较明显
+  // 方形：前端平直，边角圆润收拢
   square(k) {
     const t = 76 * k + 4
-    return `M 9 4 L 9 ${f1(t - 5)} Q 9 ${f1(t)} 14 ${f1(t)} L 46 ${f1(t)} Q 51 ${f1(t)} 51 ${f1(t - 5)} L 51 4 C 41 8 19 8 9 4 Z`
+    return `M 10 4 L 10 ${f1(t - 7)} Q 10 ${f1(t)} 15.5 ${f1(t)} L 44.5 ${f1(t)} Q 50 ${f1(t)} 50 ${f1(t - 7)} L 50 4 C 41 7.5 19 7.5 10 4 Z`
   },
   // 椭圆形：整体修长，前端为柔和椭圆
   oval(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 11 4 C 9 ${m} 12 ${f1(t - 12)} 18 ${f1(t - 4)} Q 30 ${f1(t + 4)} 42 ${f1(t - 4)} C 48 ${f1(t - 12)} 51 ${m} 49 4 C 39 8 21 8 11 4 Z`
+    return `M 11.5 4 C 9 ${m} 12 ${f1(t - 10)} 19 ${f1(t - 3)} Q 30 ${f1(t + 5)} 41 ${f1(t - 3)} C 48 ${f1(t - 10)} 51 ${m} 48.5 4 C 40 7.5 20 7.5 11.5 4 Z`
   },
   // 杏仁形：两侧逐渐收窄，前端圆润尖细
   almond(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 12 4 C 10 ${m} 15 ${f1(t - 18)} 24 ${f1(t - 5)} Q 30 ${f1(t + 2)} 36 ${f1(t - 5)} C 45 ${f1(t - 18)} 50 ${m} 48 4 C 38 8 22 8 12 4 Z`
+    return `M 12 4 C 9.5 ${m} 15 ${f1(t - 12)} 25 ${f1(t - 4)} Q 30 ${f1(t)} 35 ${f1(t - 4)} C 45 ${f1(t - 12)} 50.5 ${m} 48 4 C 39 7.5 21 7.5 12 4 Z`
   },
   // 芭蕾形：两侧收窄，前端平直，类似芭蕾舞鞋（coffin）
   ballerina(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 8 4 C 8 ${m} 12 ${f1(t - 18)} 18 ${f1(t - 8)} Q 20 ${f1(t)} 24 ${f1(t)} L 36 ${f1(t)} Q 40 ${f1(t)} 42 ${f1(t - 8)} C 48 ${f1(t - 18)} 52 ${m} 52 4 C 42 8 18 8 8 4 Z`
+    return `M 9.5 4 C 8.5 ${m} 11 ${f1(t - 13)} 17 ${f1(t - 5.5)} L 21.5 ${f1(t - 1.5)} Q 23 ${f1(t)} 25 ${f1(t)} L 35 ${f1(t)} Q 37 ${f1(t)} 38.5 ${f1(t - 1.5)} L 43 ${f1(t - 5.5)} C 49 ${f1(t - 13)} 51.5 ${m} 50.5 4 C 41 7.5 19 7.5 9.5 4 Z`
   },
   // 尖形：两侧明显收窄，前端形成尖角
   stiletto(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 12 4 C 10 ${m} 17 ${f1(t - 22)} 27 ${f1(t - 3)} L 30 ${f1(t)} L 33 ${f1(t - 3)} C 43 ${f1(t - 22)} 50 ${m} 48 4 C 38 8 22 8 12 4 Z`
+    return `M 12 4 C 9.5 ${m} 17 ${f1(t - 14)} 27 ${f1(t - 2.5)} L 30 ${f1(t)} L 33 ${f1(t - 2.5)} C 43 ${f1(t - 14)} 50.5 ${m} 48 4 C 39 7.5 21 7.5 12 4 Z`
   },
   // 俄罗斯方：整体修长，两侧略微收窄，前端保持平直
   russian(k) {
     const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 13 4 C 12 ${m} 14 ${f1(t - 16)} 17 ${f1(t - 6)} Q 18 ${f1(t)} 22 ${f1(t)} L 38 ${f1(t)} Q 42 ${f1(t)} 43 ${f1(t - 6)} C 46 ${f1(t - 16)} 48 ${m} 47 4 C 38 8 22 8 13 4 Z`
+    return `M 11.5 4 C 10.5 ${m} 13 ${f1(t - 11)} 17.5 ${f1(t - 4.5)} Q 19 ${f1(t)} 22 ${f1(t)} L 38 ${f1(t)} Q 41 ${f1(t)} 42.5 ${f1(t - 4.5)} C 47 ${f1(t - 11)} 49.5 ${m} 48.5 4 C 40 7.5 20 7.5 11.5 4 Z`
   }
 }
 const kLen = computed(() => Math.min(1.6, Math.max(0.6, Number(props.length) || 1)))
@@ -406,14 +408,11 @@ const shinePath = computed(() => {
 
 <style scoped>
 .nail-unit { position: relative; cursor: pointer; }
-/* 嵌入态（手模）：无描边，仅极柔和的自然投影贴合甲床 */
-.nail-unit.embedded .nail-svg { filter: drop-shadow(0 2px 3px rgba(120, 80, 50, 0.20)); }
+/* 嵌入态（手模）：无描边、无选中框、无悬停位移，仅极柔和的自然投影贴合甲床 */
+.nail-unit.embedded .nail-svg { filter: drop-shadow(0 2px 3px rgba(120, 80, 50, 0.18)); }
+.nail-unit.embedded:hover .nail-svg { transform: none; }
 .nail-svg { display: block; transition: transform .18s ease; }
 .nail-unit:hover .nail-svg { transform: translateY(-3px); }
-.nail-ring {
-  position: absolute; inset: -4px; border: 2px solid var(--color-primary);
-  border-radius: 20px; pointer-events: none;
-}
 .deco-item { cursor: grab; }
 .deco-item:active { cursor: grabbing; }
 .pat-item { cursor: grab; }
