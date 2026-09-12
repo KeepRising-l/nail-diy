@@ -1,25 +1,37 @@
 # -*- coding: utf-8 -*-
 """款式灵感库预设模板生成器：6 款可直接套用编辑的示例设计。
 - designParams 与设计台 defaultFinger 结构一致，套用后可继续编辑（applyParams → mergeFinger）
-- 封面用 resvg 按真实甲型轮廓程序化绘制（五指扇形排布 + 每指底色/法式/贴花点缀），无手模图
-- 直接写入本地 MySQL 的 template 表（root，密码取 MYSQL_PASSWORD 环境变量，默认 1234）
+- 封面 = 透明手模图 + 按模板 designParams 程序化上甲（复刻设计台的锚点/长度映射/甲缘遮罩/贴花几何），
+  与设计台预览所见一致；渲染后裁 4:5
+- 直接写入本地 MySQL 的 template 表（root，密码取 MYSQL_PASSWORD 环境变量，默认 1234），脚本幂等
 用法：python frontend/scripts/gen-templates.py
 """
 import os
 import json
 import math
+import base64
+import io
 import urllib.request
 
 try:
     import resvg_py
     import pymysql
+    from PIL import Image
 except ImportError as e:
-    raise SystemExit(f'缺少依赖：{e}（pip install resvg-py pymysql）')
+    raise SystemExit(f'缺少依赖：{e}（pip install resvg-py pymysql pillow）')
 
 HERE = os.path.dirname(__file__)
 SEED = os.path.join(HERE, '..', '..', 'backend', 'uploads', 'seed')
+HAND_PNG = os.path.join(HERE, '..', 'public', 'hands', 'hand-model-alpha.png')
+W, H = 1278, 1230
+CROP_X0, CROP_X1 = 147, 1131   # 4:5 裁剪（984×1230），以手部为中心
+PATTERN_U = 28                 # 与 NailArt.vue PATTERN_U 一致
+GOLD, GOLD_D, WHITE = '#C9A25E', '#A98545', '#FFFFFF'
 
-# ---- 素材目录（公共接口实时取，保证 id 与库中一致）----
+def b64(path):
+    with open(path, 'rb') as fh:
+        return base64.b64encode(fh.read()).decode()
+
 def api_materials(t):
     with urllib.request.urlopen(f'http://localhost:5199/api/materials?type={t}') as r:
         return json.load(r)['data'] or []
@@ -31,9 +43,22 @@ PATTERNS = {m['name']: m['id'] for m in api_materials('PATTERN_IMG')}
 def color_id(name): return COLORS[name][0]
 def color_hex(name): return COLORS[name][1]
 
-# ---- 甲型轮廓（与 NailArt.vue CONTOURS 同源，画布 60 宽、根缘 y≈4-8、尖端 y=76k+4）----
+# ---- 手模逐指几何（与 HandModel.vue FINGERS 实测值同源；按 fingers 数组序：小指/无名指/中指/食指/拇指）----
+GEOM = [
+    dict(x=315.8, y=356, bedW=40, bedL=79,  angle=-5.5, tone='#F7D5C5'),   # 小指 idx0
+    dict(x=876.0, y=262, bedW=57, bedL=98,  angle=18.9, tone='#F7D6C5'),   # 无名指 idx1
+    dict(x=708.8, y=150, bedW=58, bedL=117, angle=11.4, tone='#F6D2C0'),   # 中指 idx2
+    dict(x=535.0, y=206, bedW=50, bedL=93,  angle=9.5,  tone='#F7D5C4'),   # 食指 idx3
+    dict(x=983.3, y=714, bedW=70, bedL=90,  angle=38.8, tone='#EBBFAC'),   # 拇指 idx4
+]
+NAIL_LAT_W = 44
+ROOT_CENTER_Y = 7
+DEFAULT_SLOTS = [(21, 26), (30, 40), (18, 48)]
+
 def f1(v): return round(float(v), 1)
+
 def contour(code, k=1.0):
+    """与 NailArt.vue CONTOURS 同源；t=76k+4"""
     t = 76 * k + 4
     m = f1((4 + t) / 2)
     if code == 'round':
@@ -51,77 +76,81 @@ def contour(code, k=1.0):
                 f'Q 37 {t} 38.5 {f1(t-1.5)} L 43 {f1(t-5.5)} C 49 {f1(t-13)} 52 {m} 51 4 C 41 7.5 19 7.5 9 4 Z')
     raise ValueError(code)
 
-GOLD, GOLD_D, WHITE, ROSE = '#C9A25E', '#A98545', '#FFFFFF', '#E8B7B0'
+def len_fit(length, bedL, s):
+    """与 HandModel.vue slotLenFit 同源的分段映射"""
+    l = min(1.6, max(0.6, length))
+    d_bed = (1.02 + 0.35 * (l - 0.6)) if l <= 1 else (1.16 + 2.0667 * (l - 1.0))
+    return min(2.8, max(0.6, (d_bed * bedL / s + 3) / 76))
 
-def accent_svg(kind, u):
-    """指甲面上的装饰点缀（局部坐标：30 为甲面中轴，t 尖端 y）——按 1 单位=u px 缩放前先按单位画"""
-    if kind == 'french':
-        t = 80
-        return (f'<path d="M 13 {t-13} Q 30 {t-19} 47 {t-13} L 47 {t-4} Q 30 {t+3} 13 {t-4} Z" '
-                f'fill="{WHITE}" fill-opacity="0.92"/>')
-    if kind == 'dots':
-        return ''.join(f'<circle cx="{30+dx}" cy="{34+dy}" r="2.6" fill="{GOLD}"/>'
-                       for dx, dy in [(-7, -6), (0, 2), (7, -2), (-3, 12), (6, 12)])
-    if kind == 'sakura':
-        cx, cy = 30, 40
-        p = ''.join(f'<circle cx="{cx+math.cos(math.radians(a))*6:.1f}" cy="{cy+math.sin(math.radians(a))*6:.1f}" '
-                    f'r="3.4" fill="#F6CBD6"/>' for a in range(0, 360, 72))
-        return p + f'<circle cx="{cx}" cy="{cy}" r="2.2" fill="{GOLD}"/>'
-    if kind == 'moon':
-        return (f'<path d="M 30 30 a 9 9 0 1 0 7 15 a 7.2 7.2 0 1 1 -7 -15 Z" fill="{GOLD}"/>'
-                f'<path d="M 38 44 l 0 6 m -3 -3 l 6 0" stroke="{GOLD}" stroke-width="1.6" stroke-linecap="round"/>')
-    if kind == 'star':
-        cx, cy = 30, 38
-        return (f'<path d="M {cx} {cy-9} C {cx+1.4} {cy-2.4} {cx+2.4} {cy-1.4} {cx+9} {cy} '
-                f'C {cx+2.4} {cy+1.4} {cx+1.4} {cy+2.4} {cx} {cy+9} '
-                f'C {cx-1.4} {cy+2.4} {cx-2.4} {cy+1.4} {cx-9} {cy} '
-                f'C {cx-2.4} {cy-1.4} {cx-1.4} {cy-2.4} {cx} {cy-9} Z" fill="{GOLD}"/>'
-                f'<circle cx="{cx+11}" cy="{cy-11}" r="1.8" fill="{GOLD}"/>')
-    if kind == 'foil':
-        return ''.join(f'<polygon points="{x:.0f},{y-8:.0f} {x+3:.0f},{y-2:.0f} {x:.0f},{y+7:.0f} {x-3:.0f},{y-1:.0f}" '
-                       f'fill="{GOLD}" fill-opacity="{op}" transform="rotate({r} {x:.0f} {y:.0f})"/>'
-                       for x, y, r, op in [(22, 32, -20, 0.95), (36, 44, 26, 0.8), (30, 22, 8, 0.7)])
-    if kind == 'rose':
-        cx, cy = 30, 38
-        return (f'<circle cx="{cx}" cy="{cy}" r="8.5" fill="#EFB9C4" fill-opacity="0.55"/>'
-                f'<path d="M {cx} {cy} c 3 -2 6 0 5.5 3 c -0.6 3.4 -5 4.4 -7.6 2 c -3.4 -2.9 -2 -8.4 2 -10 '
-                f'c 5.2 -2.2 11 1 11.2 6.4" fill="none" stroke="{GOLD_D}" stroke-width="1.5" stroke-linecap="round"/>')
-    if kind == 'heart':
-        return (f'<path d="M 30 34 c -3.4 -3.2 -8 -2.4 -8 1 c 0 2.8 4 5.8 8 8.6 c 4 -2.8 8 -5.8 8 -8.6 '
-                f'c 0 -3.4 -4.6 -4.2 -8 -1 Z" fill="none" stroke="{GOLD_D}" stroke-width="1.5"/>')
-    if kind == 'bow':
-        return (f'<path d="M 26 36 L 20 32 L 21.5 39 Z M 34 36 L 40 32 L 38.5 39 Z" '
-                f'fill="{ROSE}" fill-opacity="0.9"/>'
-                f'<circle cx="30" cy="36.5" r="2.6" fill="{GOLD}"/>')
-    if kind == 'stripe':
-        return (f'<line x1="24" y1="20" x2="24" y2="72" stroke="{GOLD}" stroke-width="1.4" stroke-opacity="0.75"/>'
-                f'<line x1="36" y1="20" x2="36" y2="72" stroke="{GOLD}" stroke-width="1.4" stroke-opacity="0.45"/>')
-    return ''
+def nail_markup(fi, spec, clip_id, decal_b64s):
+    """单指甲片 SVG（复刻设计台渲染：轮廓/长度/法式/贴花），坐标为 60×H 画布单位"""
+    code, k, hexc = spec['code'], spec['k'], spec['hex']
+    t = 76 * k + 4
+    path = contour(code, k)
+    g = (f'<clipPath id="{clip_id}"><path d="{path}"/></clipPath>')
+    body = f'<path d="{path}" fill="{hexc}"/>'
+    inner = ''
+    if spec.get('french'):
+        h = 26
+        top_y, tip_y, lift = t - h, t, 72 / 100 * 16
+        inner += (f'<path d="M -2 {f1(top_y)} Q 30 {f1(top_y - lift)} 62 {f1(top_y)} '
+                  f'L 62 {f1(tip_y + 6)} L -2 {f1(tip_y + 6)} Z" fill="{WHITE}" fill-opacity="0.92"/>')
+    body += f'<g clip-path="url(#{clip_id})">{inner}</g>'
+    # 贴花：位置百分比与 NailArt patXY 同规则（默认槽位 j%3）
+    for j, pid in enumerate(spec.get('patterns', [])):
+        data = decal_b64s.get(pid)
+        if not data:
+            continue
+        px, py = DEFAULT_SLOTS[j % 3]
+        x = px / 100 * 60 - PATTERN_U / 2
+        y = py / 100 * (t + 4) - PATTERN_U / 2
+        body += (f'<image href="data:image/png;base64,{data}" x="{f1(x)}" y="{f1(y)}" '
+                 f'width="{PATTERN_U}" height="{PATTERN_U}" preserveAspectRatio="none"/>')
+    return g, body
 
-def nail_group(code, k, fill, u, x, y, rot, accent=None):
-    """一根指甲：<g> 平移/旋转到封面坐标；u=px/单位，根缘中心放在 (x,y)"""
-    body = (f'<path d="{contour(code, k)}" fill="{fill}" stroke="rgba(150,105,70,0.35)" stroke-width="0.8"/>'
-            + (f'<g>{accent_svg(accent, u)}</g>' if accent else ''))
-    # 根缘中心 (30,7) 对齐锚点
-    return (f'<g transform="translate({x} {y}) rotate({rot}) scale({u}) translate(-30 -7)">{body}</g>')
-
-def cover_svg(name, fingers_spec):
-    """600×750 款式卡：米色底 + 五指扇形排布"""
-    fan = [  # (甲型, 长度k, u, x, y, 旋转, 底色hex, 点缀)
-    ]
-    layouts = [(-16, 96, 508, 1.62), (-8, 214, 546, 1.82), (0, 316, 566, 1.96), (11, 414, 544, 1.90), (42, 522, 490, 2.34)]
-    defs = ('<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">'
-            '<stop offset="0" stop-color="#F7F0E5"/><stop offset="1" stop-color="#EAE0CE"/></linearGradient>'
-            '<filter id="sh" x="-60%" y="-60%" width="220%" height="220%">'
-            '<feGaussianBlur stdDeviation="6"/></filter></defs>')
-    body = '<rect width="600" height="750" fill="url(#bg)"/>'
-    for (rot, x, y, u), spec in zip(layouts, fingers_spec):
-        code, k, color, accent = spec
-        hexc = color_hex(color)
-        # 根部投影
-        body += f'<ellipse cx="{x}" cy="{y + 16*u:.0f}" rx="{30*u:.0f}" ry="{7*u:.0f}" fill="rgba(120,90,60,0.20)" filter="url(#sh)"/>'
-        body += nail_group(code, k, hexc, u, x, y, rot, accent)
-    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750">{defs}{body}</svg>'
+def hand_cover_svg(template):
+    """手模合成封面：底色渐变 + 手 + 逐指甲片 + 甲缘遮罩（与设计台同几何）"""
+    fingers = template['fingers']
+    decal_ids = sorted({pid for f in fingers for pid in f['patternIds']})
+    id2file = {m['id']: os.path.basename(m['imageUrl']) for m in api_materials('PATTERN_IMG')}
+    decal_b64s = {pid: b64(os.path.join(SEED, id2file[pid])) for pid in decal_ids if pid in id2file}
+    hand_b64 = b64(HAND_PNG)
+    defs = (f'<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">'
+            f'<stop offset="0" stop-color="#E8DFD0"/><stop offset="1" stop-color="#D9CEBA"/></linearGradient>'
+            f'<filter id="nsh" x="-40%" y="-40%" width="180%" height="180%">'
+            f'<feDropShadow dx="0" dy="2" stdDeviation="1.6" flood-color="#785032" flood-opacity="0.35"/></filter>'
+            f'<filter id="soft" x="-80%" y="-80%" width="260%" height="260%">'
+            f'<feGaussianBlur stdDeviation="2.4"/></filter>')
+    body = (f'<rect width="{W}" height="{H}" fill="url(#bg)"/>'
+            f'<image href="data:image/png;base64,{hand_b64}" x="0" y="0" width="{W}" height="{H}"/>')
+    clips = ''
+    for fi, spec in enumerate(template['specs']):
+        g = GEOM[fi]
+        rad = math.radians(g['angle'])
+        s = (g['bedW'] + 3) / NAIL_LAT_W
+        k = len_fit(spec['length'], g['bedL'], s)
+        back = ROOT_CENTER_Y * s
+        ax, ay = g['x'] - math.sin(rad) * back, g['y'] + math.cos(rad) * back
+        clip_id = f'nc{fi}'
+        clip, nail = nail_markup(fi, dict(code=spec['shape_code'], k=k, hex=spec['hex'],
+                                          french=spec['french'], patterns=spec['pattern_ids']),
+                                 clip_id, decal_b64s)
+        clips += clip
+        body += (f'<g transform="translate({ax:.1f} {ay:.1f}) rotate({g["angle"] + 180}) scale({s:.3f}) '
+                 f'translate(-30 0)" filter="url(#nsh)">{nail}</g>')
+    # 甲缘遮罩（z4，盖住甲根）
+    for fi, spec in enumerate(fingers):
+        g = GEOM[fi]
+        u = (g['bedW'] + 3) / NAIL_LAT_W
+        half = u * (NAIL_LAT_W / 2 + 0.2)
+        end, tip_c, palm_c = -2.5 * u, 4.5 * u, -9.5 * u
+        body += (f'<g transform="translate({g["x"]} {g["y"]}) rotate({g["angle"] + 180})">'
+                 f'<path d="M {-half} {end} Q 0 {tip_c} {half} {end} Q 0 {palm_c} {-half} {end} Z" '
+                 f'fill="{g["tone"]}" filter="url(#soft)"/>'
+                 f'<path d="M {-half*0.9} {-1.6*u} Q 0 {5.4*u} {half*0.9} {-1.6*u}" fill="none" '
+                 f'stroke="rgba(163,102,72,0.20)" stroke-width="{u*1.2}" filter="url(#soft)"/></g>')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" '
+            f'xmlns:xlink="http://www.w3.org/1999/xlink"><defs>{clips}{defs}</defs>{body}</svg>')
 
 def finger(shape, length, color, patterns=None, french=False, style=None):
     return {
@@ -136,61 +165,79 @@ def finger(shape, length, color, patterns=None, french=False, style=None):
         'decorations': [], 'patternPos': {}
     }
 
-# ---- 6 款预设：每款 5 指（小指/无名指/中指/食指/拇指），跳色与点缀错落，贴花 id 取自实时素材目录 ----
+# ---- 6 款预设（ fingers 序 = 小指/无名指/中指/食指/拇指，与 GEOM 对齐）----
+def spec_of(shape, length, color, french=False, pattern_names=None):
+    """生成封面渲染需要的 spec（形状代码/长度/色值/法式/贴花 id 列表）"""
+    return dict(
+        shape_code=shape, length=length, hex=color_hex(color), french=french,
+        pattern_ids=[PATTERNS[p] for p in (pattern_names or [])]
+    )
+
 TEMPLATES = [
     dict(name='奶杏圆舞', tag='简约', price=39, file='tpl_01.png',
          fingers=[finger('圆形', 1.0, '奶霜白') for _ in range(5)],
-         cover=[('round', 1.0, '奶霜白', None)] * 5),
+         specs=[spec_of('round', 1.0, '奶霜白')] * 5),
     dict(name='樱花物语', tag='甜美', price=45, file='tpl_02.png',
          fingers=[finger('椭圆形', 1.05, '芭蕾粉', ['叶子']),
                   finger('椭圆形', 1.05, '芭蕾粉'),
                   finger('椭圆形', 1.05, '芭蕾粉', ['樱花']),
                   finger('椭圆形', 1.05, '樱花粉', ['樱花', '小花']),
                   finger('椭圆形', 1.05, '芭蕾粉')],
-         cover=[('oval', 1.05, '芭蕾粉', 'sakura'), ('oval', 1.05, '芭蕾粉', None),
-                ('oval', 1.05, '芭蕾粉', 'sakura'), ('oval', 1.05, '樱花粉', 'sakura'),
-                ('oval', 1.05, '芭蕾粉', None)]),
+         specs=[spec_of('oval', 1.05, '芭蕾粉', pattern_names=['叶子']),
+                spec_of('oval', 1.05, '芭蕾粉'),
+                spec_of('oval', 1.05, '芭蕾粉', pattern_names=['樱花']),
+                spec_of('oval', 1.05, '樱花粉', pattern_names=['樱花', '小花']),
+                spec_of('oval', 1.05, '芭蕾粉')]),
     dict(name='金色月影', tag='轻奢', price=49, file='tpl_03.png',
          fingers=[finger('杏仁形', 1.25, '裸杏'),
                   finger('杏仁形', 1.25, '裸杏', ['星星']),
                   finger('杏仁形', 1.25, '裸杏', ['月亮']),
                   finger('杏仁形', 1.25, '裸杏', ['金箔']),
                   finger('杏仁形', 1.25, '裸杏')],
-         cover=[('almond', 1.25, '裸杏', None), ('almond', 1.25, '裸杏', 'star'),
-                ('almond', 1.25, '裸杏', 'moon'), ('almond', 1.25, '裸杏', 'foil'),
-                ('almond', 1.25, '裸杏', None)]),
+         specs=[spec_of('almond', 1.25, '裸杏'),
+                spec_of('almond', 1.25, '裸杏', pattern_names=['星星']),
+                spec_of('almond', 1.25, '裸杏', pattern_names=['月亮']),
+                spec_of('almond', 1.25, '裸杏', pattern_names=['金箔']),
+                spec_of('almond', 1.25, '裸杏')]),
     dict(name='法式奶盖', tag='经典', price=42, file='tpl_04.png',
          fingers=[finger('方圆形', 1.0, '奶霜白', french=True) for _ in range(5)],
-         cover=[('squoval', 1.0, '奶霜白', 'french')] * 5),
+         specs=[spec_of('squoval', 1.0, '奶霜白', french=True)] * 5),
     dict(name='玫瑰心事', tag='甜美', price=45, file='tpl_05.png',
          fingers=[finger('圆形', 1.0, '蜜桃粉', ['蝴蝶结']),
                   finger('圆形', 1.0, '蜜桃粉', ['爱心']),
                   finger('圆形', 1.0, '蜜桃粉'),
                   finger('圆形', 1.0, '樱花粉', ['玫瑰']),
                   finger('圆形', 1.0, '蜜桃粉', ['玫瑰'])],
-         cover=[('round', 1.0, '蜜桃粉', 'bow'), ('round', 1.0, '蜜桃粉', 'heart'),
-                ('round', 1.0, '蜜桃粉', None), ('round', 1.0, '樱花粉', 'rose'),
-                ('round', 1.0, '蜜桃粉', 'rose')]),
+         specs=[spec_of('round', 1.0, '蜜桃粉', pattern_names=['蝴蝶结']),
+                spec_of('round', 1.0, '蜜桃粉', pattern_names=['爱心']),
+                spec_of('round', 1.0, '蜜桃粉'),
+                spec_of('round', 1.0, '樱花粉', pattern_names=['玫瑰']),
+                spec_of('round', 1.0, '蜜桃粉', pattern_names=['玫瑰'])]),
     dict(name='芭蕾极简', tag='轻奢', price=55, file='tpl_06.png',
          fingers=[finger('芭蕾形', 1.5, '焦糖奶咖', ['条纹']),
                   finger('芭蕾形', 1.5, '焦糖奶咖'),
                   finger('芭蕾形', 1.5, '焦糖奶咖', ['金箔']),
                   finger('芭蕾形', 1.5, '焦糖奶咖', ['波点贴']),
                   finger('芭蕾形', 1.5, '焦糖奶咖')],
-         cover=[('ballerina', 1.5, '焦糖奶咖', 'stripe'), ('ballerina', 1.5, '焦糖奶咖', None),
-                ('ballerina', 1.5, '焦糖奶咖', 'foil'), ('ballerina', 1.5, '焦糖奶咖', 'dots'),
-                ('ballerina', 1.5, '焦糖奶咖', None)]),
+         specs=[spec_of('ballerina', 1.5, '焦糖奶咖', pattern_names=['条纹']),
+                spec_of('ballerina', 1.5, '焦糖奶咖'),
+                spec_of('ballerina', 1.5, '焦糖奶咖', pattern_names=['金箔']),
+                spec_of('ballerina', 1.5, '焦糖奶咖', pattern_names=['波点贴']),
+                spec_of('ballerina', 1.5, '焦糖奶咖')]),
 ]
+
+def render_cover(t):
+    png = resvg_py.svg_to_bytes(svg_string=hand_cover_svg(t), width=W, height=H)
+    im = Image.open(io.BytesIO(bytes(png))).convert('RGB')
+    im = im.crop((CROP_X0, 0, CROP_X1, H))
+    im.save(os.path.join(SEED, t['file']))
 
 def main():
     conn = pymysql.connect(host='localhost', port=3306, user='root',
                            password=os.environ.get('MYSQL_PASSWORD', '1234'), database='nail_diy')
     cur = conn.cursor()
     for i, t in enumerate(TEMPLATES):
-        png = resvg_py.svg_to_bytes(svg_string=cover_svg(t['name'], t['cover']), width=600, height=750)
-        cover_path = os.path.join(SEED, t['file'])
-        with open(cover_path, 'wb') as fh:
-            fh.write(bytes(png))
+        render_cover(t)
         params = json.dumps({'fingers': t['fingers'], 'remark': '灵感模板，可自由修改'}, ensure_ascii=False)
         cur.execute(
             'INSERT INTO template (name, style_tag, cover_url, design_params, price, sort, status, deleted) '
