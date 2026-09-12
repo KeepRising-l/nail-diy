@@ -56,6 +56,8 @@
                            :width="width"
                            :length="finger.length"
                            :outlined="false"
+                           :overlays="finger.overlays"
+                           :overlay-catalog="overlays"
                            :gradient="finger.gradient"
                            :cat-eye="finger.catEye"
                            :adjust="finger.adjust"
@@ -95,6 +97,8 @@
                   :index="i"
                   :width="widthByIndex[i]"
                   :length="f.length"
+                  :overlays="f.overlays"
+                  :overlay-catalog="overlays"
                   :gradient="f.gradient"
                   :cat-eye="f.catEye"
                   :adjust="f.adjust"
@@ -134,6 +138,8 @@
                     :index="activeFinger"
                     :width="ZOOMED_NAIL_W"
                     :length="fingers[activeFinger].length"
+                    :overlays="fingers[activeFinger].overlays"
+                    :overlay-catalog="overlays"
                     :gradient="fingers[activeFinger].gradient"
                     :cat-eye="fingers[activeFinger].catEye"
                     :adjust="fingers[activeFinger].adjust"
@@ -306,6 +312,55 @@
                   </i>
                 </div>
                 <empty-box v-if="!colors.length" text="暂无色卡素材" />
+              </div>
+
+              <!-- ══ 效果层：OVERLAY 覆盖层栈（可多选叠加） ══ -->
+              <div class="fx-block">
+                <div class="fx-head">
+                  <div>
+                    <span class="fx-title">效果层</span>
+                    <span class="fx-sub">珠光 / 闪耀 / 炫光 / 特殊材质 · 可叠加多层</span>
+                  </div>
+                  <span class="len-value" v-if="fingerOverlays.length">{{ fingerOverlays.length }} 层</span>
+                </div>
+                <div class="fx-body">
+                  <div class="cat-row">
+                    <button v-for="c in OVERLAY_CATS" :key="c.value" class="cat-chip"
+                            :class="{ active: overlaySubtype === c.value }"
+                            @click="overlaySubtype = c.value">{{ c.label }}</button>
+                  </div>
+                  <div class="overlay-grid">
+                    <div v-for="m in filteredOverlays" :key="m.id"
+                         class="overlay-card"
+                         :class="{ active: fingerOverlays.some(o => o.id === m.id) }"
+                         role="button" tabindex="0"
+                         :aria-pressed="fingerOverlays.some(o => o.id === m.id)"
+                         :aria-label="`效果层 ${m.name}`"
+                         @click="toggleOverlay(m.id)"
+                         @keydown.enter.prevent="toggleOverlay(m.id)">
+                      <div class="overlay-preview">
+                        <NailArt :shape="shapeById(active.shapeId)" :color="colorCodeOf(active)"
+                                 :length="active.length" :outlined="false" :width="44"
+                                 :overlays="[{ id: m.id, opacity: 1 }]" :overlay-catalog="overlays" />
+                      </div>
+                      <span class="overlay-name">{{ m.name }}</span>
+                    </div>
+                    <empty-box v-if="!filteredOverlays.length" text="暂无效果层素材" />
+                  </div>
+                  <template v-if="fingerOverlays.length">
+                    <p class="section-desc ov-count">已叠加 <b>{{ fingerOverlays.length }}</b> 层（透明度可调）：</p>
+                    <div class="ov-list">
+                      <div v-for="o in fingerOverlays" :key="o.id" class="ov-item-row">
+                        <span class="ov-name">{{ overlayName(o.id) }}</span>
+                        <input type="range" min="0.15" max="1" step="0.05"
+                               :value="o.opacity"
+                               @input="setOverlayOpacity(o.id, Number($event.target.value))"
+                               @change="pushHistory" />
+                        <button class="ov-del" @click="removeOverlay(o.id)" title="移除该层">×</button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
               </div>
 
               <!-- ══ 两色渐变 ══ -->
@@ -742,8 +797,9 @@ const FRENCH_COLORS = ['#FFFFFF', '#F6D7DE', '#F3E0C0', '#D9E4F2', '#1F1B1A', '#
 function defaultFinger() {
   return {
     shapeId: null,
-    length: 1,                        // 长度系数 0.6~1.3（独立于甲型的设计维度）
+    length: 1,                        // 长度系数 0.6~1.6（独立于甲型的设计维度）
     colorId: null,
+    overlays: [],                     // OVERLAY 层栈 [{ id, opacity }]，可多选叠加
     patternIds: [],
     gradient: { enabled: false, color2: '', position: 50 },
     catEye:   { enabled: false, angle: 25, width: 34, brightness: 72 },
@@ -762,6 +818,7 @@ const colors = ref([])
 const patterns = ref([])
 const stylePatterns = ref([])        // 参数化款式（PATTERN_STYLE）
 const decors = ref([])               // 矢量装饰件（DECOR）
+const overlays = ref([])             // 效果覆盖层（OVERLAY：珠光/闪耀/炫光/特殊）
 const CATEGORY_LABELS = { BASIC: '基础', FRENCH: '法式', GRADIENT: '渐变', NATURE: '自然', GEO: '几何', SHINE: '闪钻', CUTE: '可爱' }
 function categoryLabel(v) { return CATEGORY_LABELS[v] || v }
 // 图案分类 chips 按实际素材动态生成，避免出现永远为空的死筛选
@@ -778,18 +835,20 @@ watch(patternCats, (cats) => {
 
 async function loadMaterials() {
   try {
-    const [s, c, p, sp, d] = await Promise.all([
+    const [s, c, p, sp, d, ov] = await Promise.all([
       request.get('/materials', { params: { type: 'SHAPE' } }),
       request.get('/materials', { params: { type: 'COLOR' } }),
       request.get('/materials', { params: { type: 'PATTERN_IMG' } }),
       request.get('/materials', { params: { type: 'PATTERN_STYLE' } }),
-      request.get('/materials', { params: { type: 'DECOR' } })
+      request.get('/materials', { params: { type: 'DECOR' } }),
+      request.get('/materials', { params: { type: 'OVERLAY' } })
     ])
     shapes.value = s.data || []
     colors.value = c.data || []
     patterns.value = p.data || []
     stylePatterns.value = sp.data || []
     decors.value = d.data || []
+    overlays.value = ov.data || []
   } catch (e) { /* */ }
 }
 
@@ -955,6 +1014,37 @@ const filteredPatterns = computed(() => patternCategory.value === 'ALL'
   : patterns.value.filter(m => m.category === patternCategory.value))
 
 function selectShape(id) { if (active.value.shapeId !== id) { active.value.shapeId = id; pushHistory() } }
+// -------- 效果层（OVERLAY 覆盖层栈）：多选叠加 / opacity / 删除 --------
+const OVERLAY_CATS = [
+  { value: 'ALL', label: '全部' },
+  { value: 'GLOSS', label: '光泽' },
+  { value: 'PEARL', label: '珠光' },
+  { value: 'SHIMMER', label: '闪耀' },
+  { value: 'EFFECT', label: '炫光' },
+  { value: 'SPECIAL', label: '特殊' }
+]
+const overlaySubtype = ref('ALL')
+const filteredOverlays = computed(() => overlaySubtype.value === 'ALL'
+  ? overlays.value
+  : overlays.value.filter(m => m.category === overlaySubtype.value))
+const fingerOverlays = computed(() => active.value?.overlays || [])
+function overlayName(id) { return overlays.value.find(m => m.id === id)?.name || '效果层' }
+function toggleOverlay(id) {
+  const arr = active.value.overlays
+  const i = arr.findIndex(o => o.id === id)
+  if (i >= 0) arr.splice(i, 1)
+  else arr.push({ id, opacity: 1 })
+  pushHistory()
+}
+function setOverlayOpacity(id, v) {
+  const o = active.value.overlays.find(x => x.id === id)
+  if (o) o.opacity = v
+}
+function removeOverlay(id) {
+  const arr = active.value.overlays
+  const i = arr.findIndex(o => o.id === id)
+  if (i >= 0) { arr.splice(i, 1); pushHistory() }
+}
 // 长度档位文案（短/自然/标准/加长/超长）
 const LENGTH_LABELS = [[0.75, '短'], [0.95, '自然'], [1.1, '标准'], [1.3, '加长'], [1.45, '超长'], [9, '极长']]
 const lengthLabel = computed(() => {
@@ -1104,6 +1194,7 @@ function syncAll() {
   fingers.value.forEach(f => {
     f.shapeId = src.shapeId
     f.length = src.length
+    f.overlays = JSON.parse(JSON.stringify(src.overlays || []))
     f.colorId = src.colorId
     f.patternIds = [...src.patternIds]
     f.gradient = JSON.parse(JSON.stringify(src.gradient))
@@ -1170,8 +1261,14 @@ function validId(list, id) { return list.some(m => m.id === id) }
 function mergeFinger(target, fp) {
   const def = defaultFinger()
   target.shapeId = validId(shapes.value, fp.shapeId) ? fp.shapeId : target.shapeId
-  target.length = Math.min(1.3, Math.max(0.6, Number(fp.length) || 1))
+  target.length = Math.min(1.6, Math.max(0.6, Number(fp.length) || 1))
   if (validId(colors.value, fp.colorId)) target.colorId = fp.colorId
+  // OVERLAY 层栈：只保留素材库中仍存在的层
+  if (Array.isArray(fp.overlays)) {
+    target.overlays = fp.overlays
+      .filter(o => overlays.value.some(m => m.id === o.id))
+      .map(o => ({ id: o.id, opacity: Math.max(0, Math.min(1, Number(o.opacity ?? 1))) }))
+  }
   target.patternIds = (fp.patternIds || []).filter(id => validId(patterns.value, id))
   if (fp.gradient) target.gradient = { ...def.gradient, ...fp.gradient }
   if (fp.catEye)   target.catEye = { ...def.catEye, ...fp.catEye }
@@ -2124,6 +2221,53 @@ async function save() {
   .studio { grid-template-columns: 1fr; }
   .preview-wrap { position: relative; top: 0; }
 }
+
+/* ========== 效果层（OVERLAY 覆盖层栈） ========== */
+.overlay-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.overlay-card {
+  background: #F7F1E8;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 8px 4px 6px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+}
+.overlay-card:hover { border-color: var(--color-primary-light-5); }
+.overlay-card.active { border-color: var(--color-primary); background: #FBE9F1; }
+.overlay-preview { display: grid; place-items: center; min-height: 64px; }
+.overlay-name {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+.ov-count { margin-top: 12px; }
+.ov-list { display: flex; flex-direction: column; gap: 6px; }
+.ov-item-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 30px;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-muted, #F5F0E6);
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+.ov-name { font-family: var(--font-ui); font-size: 12px; font-weight: 600; }
+.ov-del {
+  width: 24px; height: 24px;
+  border: none; border-radius: 50%;
+  background: #fff; color: var(--color-muted-foreground);
+  font-size: 15px; line-height: 1;
+  cursor: pointer;
+}
+.ov-del:hover { color: #D64545; }
 
 /* ========== 长度控制（独立于甲型的设计维度） ========== */
 .length-block { margin-top: 14px; }

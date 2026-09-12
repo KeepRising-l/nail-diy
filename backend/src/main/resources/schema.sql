@@ -340,6 +340,30 @@ INSERT INTO `material` (`type`, `code`, `name`, `category`, `attrs`, `sort`) VAL
 ('DECOR', 'bar',      '长条金属', 'METAL', JSON_OBJECT('material','金属'), 9),
 ('DECOR', 'pearl',    '珍珠',     'PEARL', JSON_OBJECT('material','珍珠'), 10);
 
+-- 14.45 指甲油效果覆盖层（OVERLAY，透明 PNG 图层；过渡期 image_url 为空走前端参数化渲染）
+--       category 为子类：GLOSS光泽/PEARL珠光/SHIMMER闪耀/EFFECT炫光/SPECIAL特殊
+INSERT INTO `material` (`type`, `code`, `name`, `image_url`, `category`, `tags`, `sort`) VALUES
+('OVERLAY', 'gloss-soft',    '柔光',       '', 'GLOSS',   '柔光,光泽', 1),
+('OVERLAY', 'gloss-glass',   '玻璃高光',   '', 'GLOSS',   '玻璃,高光,透亮', 2),
+('OVERLAY', 'gloss-wet',     '湿润高光',   '', 'GLOSS',   '湿润,水光', 3),
+('OVERLAY', 'pearl-white',   '白色珠光',   '', 'PEARL',   '珠光,白,细腻', 4),
+('OVERLAY', 'pearl-pink',    '粉色珠光',   '', 'PEARL',   '珠光,粉', 5),
+('OVERLAY', 'pearl-purple',  '紫色珠光',   '', 'PEARL',   '珠光,紫', 6),
+('OVERLAY', 'pearl-gold',    '金色珠光',   '', 'PEARL',   '珠光,金', 7),
+('OVERLAY', 'pearl-rainbow', '彩虹珠光',   '', 'PEARL',   '珠光,彩虹,偏光', 8),
+('OVERLAY', 'shimmer-silver','银色细闪',   '', 'SHIMMER', '闪,银,细闪', 9),
+('OVERLAY', 'shimmer-gold',  '金色细闪',   '', 'SHIMMER', '闪,金,细闪', 10),
+('OVERLAY', 'shimmer-pink',  '粉色细闪',   '', 'SHIMMER', '闪,粉,细闪', 11),
+('OVERLAY', 'shimmer-multi', '彩色细闪',   '', 'SHIMMER', '闪,彩,细闪', 12),
+('OVERLAY', 'shimmer-fine',  '超细微闪',   '', 'SHIMMER', '闪,超细,若隐若现', 13),
+('OVERLAY', 'effect-aurora', '极光炫光',   '', 'EFFECT',  '极光,炫光,梦幻', 14),
+('OVERLAY', 'effect-holo',   '全息炫光',   '', 'EFFECT',  '全息,炫光,偏光', 15),
+('OVERLAY', 'effect-prism',  '棱镜折射',   '', 'EFFECT',  '棱镜,折射,炫光', 16),
+('OVERLAY', 'special-chrome','Chrome 镜面','', 'SPECIAL', '镜面,金属,chrome', 17),
+('OVERLAY', 'special-liquid','液态金属',   '', 'SPECIAL', '液态金属,金属', 18),
+('OVERLAY', 'special-glass', '玻璃糖',     '', 'SPECIAL', '玻璃糖,透亮', 19),
+('OVERLAY', 'special-jelly', '果冻质感',   '', 'SPECIAL', '果冻,透,湿润', 20);
+
 -- 14.5 贴图素材（31 张 seed PNG，category：NATURE自然/GEO几何/CUTE可爱/SHINE闪亮）
 INSERT INTO `material` (`type`, `name`, `image_url`, `category`, `tags`, `sort`) VALUES
 ('PATTERN_IMG', '蝴蝶结', '/uploads/seed/pat_bow.png',        'CUTE',   '蝴蝶结,可爱', 1),

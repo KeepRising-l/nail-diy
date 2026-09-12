@@ -94,6 +94,18 @@
           </g>
         </template>
 
+        <!-- ④.5 效果覆盖层（OVERLAY 层栈：珠光/闪耀/炫光/特殊等，可多选叠加）
+             image_url 有值走透明 PNG 通道，否则参数化渲染；统一裁剪进轮廓、随长度缩放 -->
+        <g v-for="ov in overlayRenders" :key="'ov' + ov.id" :opacity="ov.opacity">
+          <template v-if="ov.image">
+            <image :href="ov.image" x="-2" y="-2" :width="64" :height="HEIGHT + 4" preserveAspectRatio="none" />
+          </template>
+          <g v-else :transform="`scale(1 ${kLen})`">
+            <path v-for="(el, i) in ov.els" v-bind="restAttrs(el)" :key="'ove' + i" />
+            <circle v-for="(el, i) in ov.circles" v-bind="restAttrs(el)" :key="'ovc' + i" />
+          </g>
+        </g>
+
         <!-- ⑤ 贴花图案（素材库；落点由父组件记录，可在甲面上拖动微调） -->
         <g v-for="(p, j) in patterns" :key="'p' + j"
            class="pat-item"
@@ -128,6 +140,7 @@
 import { computed, ref } from 'vue'
 import { adjustColor, seededRandom, isDarkColor } from '../utils/color'
 import { genPattern } from '../engine/patternStyles'
+import { genOverlay } from '../engine/polishOverlays'
 
 const props = defineProps({
   shape: { type: Object, default: null },   // { name } 甲型素材
@@ -146,7 +159,9 @@ const props = defineProps({
   patternPos: { type: Object, default: null },   // { [图案id]: { x%, y% } } 拖放落点（未记录的回退默认槽位）
   patternStyle: { type: Object, default: null }, // { code, params } 参数化款式（见 engine/patternStyles.js）
   length: { type: Number, default: 1 },          // 长度系数 0.6~1.6，独立于甲型的设计维度
-  outlined: { type: Boolean, default: true }     // 是否绘制描边（手模嵌入态传 false，改用柔和投影）
+  outlined: { type: Boolean, default: true },    // 是否绘制描边（手模嵌入态传 false，改用柔和投影）
+  overlays: { type: Array, default: () => [] },      // [{ id, opacity }] OVERLAY 层栈，可多选叠加
+  overlayCatalog: { type: Array, default: () => [] } // OVERLAY 素材目录（id → code/image_url 解析）
 })
 const emit = defineEmits(['select', 'moveDeco', 'movePattern'])
 // 组件实例唯一 id（SVG defs 防串色）
@@ -266,6 +281,19 @@ function restAttrs(el) {
   const { tag, ...attrs } = el
   return attrs
 }
+
+// ---------- ④.5 效果覆盖层（OVERLAY 层栈） ----------
+// image_url 有值 → 透明 PNG 通道（最终形态）；否则按 code 参数化渲染（过渡期）
+const overlayRenders = computed(() => {
+  return (props.overlays || []).map(o => {
+    const mat = (props.overlayCatalog || []).find(m => m.id === o.id)
+    if (!mat) return null
+    const base = { id: o.id, opacity: Math.max(0, Math.min(1, Number(o.opacity ?? 1))) }
+    if (mat.imageUrl) return { ...base, image: mat.imageUrl }
+    const els = genOverlay(mat.code, { seed: props.index + 1 })
+    return { ...base, els: els.filter(e => e.tag === 'path'), circles: els.filter(e => e.tag === 'circle') }
+  }).filter(Boolean)
+})
 
 // ---------- ③ 法式甲（贴着自由缘/指尖，随长度伸缩） ----------
 const frenchOn = computed(() => !!props.french?.enabled)
