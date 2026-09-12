@@ -270,19 +270,16 @@ CREATE TABLE `notice` (
 --     SHAPE/PATTERN_STYLE/DECOR 为代码注册素材（code 绑定前端渲染器，无图）
 -- =============================================================
 
--- 14.1 甲型（11 款，code 对应前端 NailArt PATHS 的 key；category 为长度系列）
+-- 14.1 甲型（8 种纯轮廓，code 对应前端 NailArt CONTOURS；长度是设计器里的独立维度，不入甲型）
 INSERT INTO `material` (`type`, `code`, `name`, `image_url`, `category`, `attrs`, `sort`) VALUES
-('SHAPE', 'short',     '短圆',     '/uploads/seed/shape_short.png',    'SHORT',  JSON_OBJECT('length','SHORT'),  1),
-('SHAPE', 'shortsq',   '短方',     '',                                 'SHORT',  JSON_OBJECT('length','SHORT'),  2),
-('SHAPE', 'round',     '圆形',     '',                                 'SHORT',  JSON_OBJECT('length','SHORT'),  3),
-('SHAPE', 'square',    '方形',     '/uploads/seed/shape_square.png',   'MEDIUM', JSON_OBJECT('length','MEDIUM'), 4),
-('SHAPE', 'oval',      '椭圆',     '/uploads/seed/shape_oval.png',     'MEDIUM', JSON_OBJECT('length','MEDIUM'), 5),
-('SHAPE', 'almond',    '杏仁',     '/uploads/seed/shape_almond.png',   'MEDIUM', JSON_OBJECT('length','MEDIUM'), 6),
-('SHAPE', 'moval',     '中长椭圆', '',                                 'MEDIUM', JSON_OBJECT('length','MEDIUM'), 7),
-('SHAPE', 'stiletto',  '尖型',     '/uploads/seed/shape_stiletto.png', 'LONG',   JSON_OBJECT('length','LONG'),   8),
-('SHAPE', 'xsquare',   '超长方',   '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  9),
-('SHAPE', 'xstiletto', '超长尖',   '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  10),
-('SHAPE', 'russian',   '俄罗斯方', '',                                 'XLONG',  JSON_OBJECT('length','XLONG'),  11);
+('SHAPE', 'round',     '圆形',     '',  '', NULL, 1),
+('SHAPE', 'squoval',   '方圆形',   '',  '', NULL, 2),
+('SHAPE', 'square',    '方形',     '',  '', NULL, 3),
+('SHAPE', 'oval',      '椭圆形',   '',  '', NULL, 4),
+('SHAPE', 'almond',    '杏仁形',   '',  '', NULL, 5),
+('SHAPE', 'ballerina', '芭蕾形',   '',  '', NULL, 6),
+('SHAPE', 'stiletto',  '尖形',     '',  '', NULL, 7),
+('SHAPE', 'russian',   '俄罗斯方', '',  '', NULL, 8);
 
 -- 14.2 预设色卡（30 色，category 为色系，attrs.finish 为质感：SOLID纯色/JELLY冰透/GLITTER碎钻/CAT_EYE猫眼）
 INSERT INTO `material` (`type`, `name`, `color_code`, `category`, `attrs`, `sort`) VALUES

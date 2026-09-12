@@ -65,24 +65,27 @@
         <!-- ② 猫眼光带（叠加提亮） -->
         <path v-if="catEyeOn" :d="shapePath" :fill="`url(#${uid}-cat)`" style="mix-blend-mode: screen" />
 
-        <!-- ②.5 参数化款式（引擎生成：大理石/玳瑁/极光/曲线/几何/星星等，渲染在底色与法式之间） -->
-        <g v-for="(el, i) in styleEls" :key="'st' + i">
-          <path v-if="el.tag === 'path'" v-bind="restAttrs(el)" />
-          <circle v-else-if="el.tag === 'circle'" v-bind="restAttrs(el)" />
-          <ellipse v-else-if="el.tag === 'ellipse'" v-bind="restAttrs(el)" />
+        <!-- ②.5 参数化款式（引擎生成：大理石/玳瑁/极光/曲线/几何/星星等，渲染在底色与法式之间）
+             引擎按 60x84 标准甲面出坐标，这里按长度系数整体纵向缩放 -->
+        <g :transform="`scale(1 ${kLen})`">
+          <g v-for="(el, i) in styleEls" :key="'st' + i">
+            <path v-if="el.tag === 'path'" v-bind="restAttrs(el)" />
+            <circle v-else-if="el.tag === 'circle'" v-bind="restAttrs(el)" />
+            <ellipse v-else-if="el.tag === 'ellipse'" v-bind="restAttrs(el)" />
+          </g>
         </g>
 
         <!-- ③ 法式甲（指尖弧形带） -->
         <path v-if="frenchOn" :d="frenchPath" :fill="frenchFill" />
 
-        <!-- ④ 波点 / 豹纹 -->
+        <!-- ④ 波点 / 豹纹（随长度纵向缩放） -->
         <template v-if="dotsOn">
-          <g v-if="dt.kind === 'dots'">
+          <g v-if="dt.kind === 'dots'" :transform="`scale(1 ${kLen})`">
             <ellipse v-for="(p, i) in dotList" :key="'d' + i"
                      :cx="p.x" :cy="p.y" :rx="p.r" :ry="p.r * 0.92"
                      :fill="dotsFill" :opacity="0.9" />
           </g>
-          <g v-else><!-- 豹纹：不规则环 + 内点 -->
+          <g v-else :transform="`scale(1 ${kLen})`"><!-- 豹纹：不规则环 + 内点 -->
             <g v-for="(p, i) in dotList" :key="'l' + i">
               <circle :cx="p.x" :cy="p.y" :r="p.r" fill="none"
                       :stroke="dotsFill" :stroke-width="p.r * 0.62" :opacity="0.85" />
@@ -141,55 +144,77 @@ const props = defineProps({
   dots: { type: Object, default: null },        // { enabled, kind:'dots'|'leopard', density(3-15), size(1-5), color }
   decorations: { type: Array, default: () => [] }, // [{ id, type, x%, y%, size, angle }]
   patternPos: { type: Object, default: null },   // { [图案id]: { x%, y% } } 拖放落点（未记录的回退默认槽位）
-  patternStyle: { type: Object, default: null }  // { code, params } 参数化款式（见 engine/patternStyles.js）
+  patternStyle: { type: Object, default: null }, // { code, params } 参数化款式（见 engine/patternStyles.js）
+  length: { type: Number, default: 1 }           // 长度系数 0.6~1.3，独立于甲型的设计维度
 })
 const emit = defineEmits(['select', 'moveDeco', 'movePattern'])
-
-const HEIGHT = 84
 // 组件实例唯一 id（SVG defs 防串色）
 const uid = 'na' + Math.random().toString(36).slice(2, 9)
 const svgRef = ref(null)
 
-// ---------- 甲型轮廓 ----------
-// 11 款差异化轮廓（viewBox 60x84，指尖朝上）：短圆/短方/圆 | 方/椭圆/杏仁/尖 | 中长椭圆 | 超长方/超长尖/超长圆尖
-// 差异化维度：长度比例 + 指尖形态（平/圆/尖）+ 侧边曲率，确保小尺寸预览也能一眼区分
-const PATHS = {
-  // 短系列（category SHORT）
-  short:   'M 30 8 C 41 8 50 16 50 28 C 50 44 48 57 44 65 C 40 73 35 76 30 76 C 25 76 20 73 16 65 C 12 57 10 44 10 28 C 10 16 19 8 30 8 Z',
-  shortsq: 'M 16 15 Q 16 10 21 10 L 39 10 Q 44 10 44 15 L 44 52 C 44 66 38 74 30 74 C 22 74 16 66 16 52 Z',
-  round:   'M 30 8 C 44 8 52 18 52 32 C 52 48 42 61 30 65 C 18 61 8 48 8 32 C 8 18 16 8 30 8 Z',
-  // 中长系列（category MEDIUM）
-  square:  'M 14 12 Q 14 5 20 5 L 40 5 Q 46 5 46 12 L 46 56 C 46 70 39 78 30 78 C 21 78 14 70 14 56 Z',
-  oval:    'M 30 4 C 19 4 11 14 11 27 C 11 44 9 56 12 64 C 15 73 22 78 30 78 C 38 78 45 73 48 64 C 51 56 49 44 49 27 C 49 14 41 4 30 4 Z',
-  almond:  'M 30 6 C 23 9 16 18 14 31 C 12 46 14 58 18 65 C 22 72 26 76 30 76 C 34 76 38 72 42 65 C 46 58 48 46 46 31 C 44 18 37 9 30 6 Z',
-  stiletto:'M 30 0 C 24 5 17 16 14 30 C 11 45 13 58 18 66 C 22 73 26 78 30 78 C 34 78 38 73 42 66 C 47 58 49 45 46 30 C 43 16 36 5 30 0 Z',
-  moval:   'M 30 5 C 22 5 14 13 14 26 L 14 60 C 14 71 21 77 30 77 C 39 77 46 71 46 60 L 46 26 C 46 13 38 5 30 5 Z',
-  // 超长系列（category XLONG）
-  xsquare:   'M 17 10 Q 17 3 23 3 L 37 3 Q 43 3 43 10 L 43 62 C 43 74 37 80 30 80 C 23 80 17 74 17 62 Z',
-  xstiletto: 'M 30 0 C 21 4 17 14 17 26 L 17 56 C 17 70 22 79 30 80 C 38 79 43 70 43 56 L 43 26 C 43 14 39 4 30 0 Z',
-  russian:   'M 30 2 C 24 2 19 8 18 17 L 16 44 C 15 60 20 74 30 79 C 40 74 45 60 44 44 L 42 17 C 41 8 36 2 30 2 Z',
-  default: 'M30 4 C18 4 10 14 10 26 C10 42 10 56 10 62 C10 72 18 78 30 78 C42 78 50 72 50 62 C50 56 50 42 50 26 C50 14 42 4 30 4 Z'
+// ---------- 甲型轮廓 × 长度（两个独立设计维度） ----------
+// 画布约定：y=0 为甲根（指根侧），y 沿指甲长轴朝指尖增大；viewBox 高度随长度伸缩
+// 甲型 = 8 种纯轮廓（决定前端形状）；长度 = 独立系数 k∈[0.6,1.3]（决定甲片长短）
+const f1 = v => Number(v.toFixed(1))
+const CONTOURS = {
+  // 圆形：前端呈自然圆弧，甲面饱满
+  round(k) {
+    const t = 76 * k + 4, m = f1((4 + t) / 2)
+    return `M 10 4 C 8 ${m} 10 ${f1(t - 16)} 15 ${f1(t - 8)} Q 30 ${f1(t + 6)} 45 ${f1(t - 8)} C 50 ${f1(t - 16)} 52 ${m} 50 4 C 42 0 18 0 10 4 Z`
+  },
+  // 方圆形：整体偏方，但边角圆润（squoval）
+  squoval(k) {
+    const t = 76 * k + 4, m = f1((4 + t) / 2)
+    return `M 11 4 C 10 ${m} 11 ${f1(t - 14)} 15 ${f1(t - 7)} Q 30 ${f1(t + 3)} 45 ${f1(t - 7)} C 49 ${f1(t - 14)} 50 ${m} 49 4 C 42 0 18 0 11 4 Z`
+  },
+  // 方形：前端平直，边角较明显
+  square(k) {
+    const t = 76 * k + 4
+    return `M 9 4 L 9 ${f1(t - 5)} Q 9 ${f1(t)} 14 ${f1(t)} L 46 ${f1(t)} Q 51 ${f1(t)} 51 ${f1(t - 5)} L 51 4 C 43 0 17 0 9 4 Z`
+  },
+  // 椭圆形：整体修长，前端为柔和椭圆
+  oval(k) {
+    const t = 76 * k + 4, m = f1((4 + t) / 2)
+    return `M 11 4 C 9 ${m} 12 ${f1(t - 12)} 18 ${f1(t - 4)} Q 30 ${f1(t + 4)} 42 ${f1(t - 4)} C 48 ${f1(t - 12)} 51 ${m} 49 4 C 41 0 19 0 11 4 Z`
+  },
+  // 杏仁形：两侧逐渐收窄，前端圆润尖细
+  almond(k) {
+    const t = 76 * k + 4, m = f1((4 + t) / 2)
+    return `M 12 4 C 10 ${m} 15 ${f1(t - 18)} 24 ${f1(t - 5)} Q 30 ${f1(t + 2)} 36 ${f1(t - 5)} C 45 ${f1(t - 18)} 50 ${m} 48 4 C 40 0 20 0 12 4 Z`
+  },
+  // 芭蕾形：两侧收窄，前端平直，类似芭蕾舞鞋（coffin）
+  ballerina(k) {
+    const t = 76 * k + 4, m = f1((4 + t) / 2)
+    return `M 8 4 C 8 ${m} 12 ${f1(t - 18)} 18 ${f1(t - 8)} Q 20 ${f1(t)} 24 ${f1(t)} L 36 ${f1(t)} Q 40 ${f1(t)} 42 ${f1(t - 8)} C 48 ${f1(t - 18)} 52 ${m} 52 4 C 44 0 16 0 8 4 Z`
+  },
+  // 尖形：两侧明显收窄，前端形成尖角
+  stiletto(k) {
+    const t = 76 * k + 4, m = f1((4 + t) / 2)
+    return `M 12 4 C 10 ${m} 17 ${f1(t - 22)} 27 ${f1(t - 3)} L 30 ${f1(t)} L 33 ${f1(t - 3)} C 43 ${f1(t - 22)} 50 ${m} 48 4 C 40 0 20 0 12 4 Z`
+  },
+  // 俄罗斯方：整体修长，两侧略微收窄，前端保持平直
+  russian(k) {
+    const t = 76 * k + 4, m = f1((4 + t) / 2)
+    return `M 13 4 C 12 ${m} 14 ${f1(t - 16)} 17 ${f1(t - 6)} Q 18 ${f1(t)} 22 ${f1(t)} L 38 ${f1(t)} Q 42 ${f1(t)} 43 ${f1(t - 6)} C 46 ${f1(t - 16)} 48 ${m} 47 4 C 40 0 20 0 13 4 Z`
+  }
 }
+const kLen = computed(() => Math.min(1.3, Math.max(0.6, Number(props.length) || 1)))
+const HEIGHT = computed(() => Math.round(76 * kLen.value + 8))
 const shapePath = computed(() => {
-  // 新版：素材 code 直接绑定渲染器 path（素材库重构后）
-  const code = props.shape?.code || ''
-  if (code && PATHS[code]) return PATHS[code]
-  // 旧数据回退：按名称关键字匹配
+  const gen = CONTOURS[props.shape?.code]
+  if (gen) return gen(kLen.value)
+  // 旧数据回退：按名称关键字匹配（顺序敏感：方圆→椭圆 先于 圆）
   const name = props.shape?.name || ''
-  let key = 'default'
-  // 匹配顺序敏感：长前缀系列 → 方/椭/杏/尖 → 圆 → 短圆
-  if (name.includes('超长方')) key = 'xsquare'
-  else if (name.includes('超长尖')) key = 'xstiletto'
-  else if (name.includes('俄罗斯')) key = 'russian'
-  else if (name.includes('中长')) key = 'moval'
-  else if (name.includes('短方')) key = 'shortsq'
-  else if (name.includes('圆形')) key = 'round'
-  else if (name.includes('方圆') || name.includes('方形')) key = 'square'
+  let key = 'oval'
+  if (name.includes('方圆')) key = 'squoval'
   else if (name.includes('椭圆')) key = 'oval'
+  else if (name.includes('芭蕾')) key = 'ballerina'
+  else if (name.includes('俄罗斯')) key = 'russian'
   else if (name.includes('杏仁')) key = 'almond'
+  else if (name.includes('方')) key = 'square'
   else if (name.includes('尖')) key = 'stiletto'
-  else if (name.includes('短圆')) key = 'short'
-  return PATHS[key]
+  else if (name.includes('圆')) key = 'round'
+  return CONTOURS[key](kLen.value)
 })
 
 // ---------- 贴花位置 ----------
@@ -203,7 +228,7 @@ function patXY(j) {
   if (pos) {
     return {
       x: Math.round((pos.x / 100) * 60 - 9),
-      y: Math.round((pos.y / 100) * HEIGHT - 9)
+      y: Math.round((pos.y / 100) * HEIGHT.value - 9)
     }
   }
   return patternPos[j % patternPos.length]
@@ -241,14 +266,15 @@ function restAttrs(el) {
   return attrs
 }
 
-// ---------- ③ 法式甲 ----------
+// ---------- ③ 法式甲（贴着自由缘/指尖，随长度伸缩） ----------
 const frenchOn = computed(() => !!props.french?.enabled)
 const fr = computed(() => ({ color: '#FFFFFF', height: 26, curvature: 72, ...props.french }))
 const frenchFill = computed(() => fr.value.color || '#FFFFFF')
 const frenchPath = computed(() => {
-  const topY = 78 - Math.max(8, Math.min(40, fr.value.height))
+  const tipY = 76 * kLen.value + 4
+  const topY = tipY - Math.max(8, Math.min(40, fr.value.height))
   const lift = (fr.value.curvature / 100) * 16   // 笑线中央上扬
-  return `M -2 ${topY} Q 30 ${topY - lift} 62 ${topY} L 62 86 L -2 86 Z`
+  return `M -2 ${f1(topY)} Q 30 ${f1(topY - lift)} 62 ${f1(topY)} L 62 ${f1(tipY + 6)} L -2 ${f1(tipY + 6)} Z`
 })
 
 // ---------- ④ 波点 / 豹纹 ----------
@@ -310,7 +336,7 @@ function decoFill(d) {
 }
 function decoTransform(d) {
   const s = (d.size || 12) / 12
-  return `translate(${(d.x / 100) * 60} ${(d.y / 100) * HEIGHT}) rotate(${d.angle || 0}) scale(${s})`
+  return `translate(${(d.x / 100) * 60} ${(d.y / 100) * HEIGHT.value}) rotate(${d.angle || 0}) scale(${s})`
 }
 
 // 拖动装饰：SVG 坐标 → 百分比，emit 给父组件
@@ -357,10 +383,18 @@ function onPatDown(e, j) {
   window.addEventListener('pointerup', up)
 }
 
-// ---------- ⑦ 顶胶高光 ----------
-// 宽幅柔光自指尖向下淡出；细长高光条偏左贯穿甲面（凝胶亮面质感，参照实拍甲片高光）
-const sheenPath = 'M 13 8 Q 30 2 47 8 Q 49 30 42 56 Q 30 61 18 56 Q 11 30 13 8 Z'
-const shinePath = 'M 24 13 C 22 23, 21 34, 23.5 46'
+// ---------- ⑦ 顶胶高光（随长度伸缩） ----------
+// 宽幅柔光自甲根向指尖淡出；细长高光条偏左贯穿甲面（凝胶亮面质感，参照实拍甲片高光）
+const sheenPath = computed(() => {
+  const tipY = 76 * kLen.value + 4
+  const y2 = Math.min(tipY - 4, 12 + 46 * kLen.value)
+  const w = 6 + 24 * kLen.value
+  return `M 13 6 Q 30 1 47 6 Q 49 ${f1(w)} 42 ${f1(y2)} Q 30 ${f1(y2 + 5)} 18 ${f1(y2)} Q 11 ${f1(w)} 13 6 Z`
+})
+const shinePath = computed(() => {
+  const y2 = Math.min(76 * kLen.value - 2, 11 + 34 * kLen.value)
+  return `M 24 11 C ${f1(24 - 2 * kLen.value)} ${f1(11 + 10 * kLen.value)}, 21.5 ${f1(11 + 22 * kLen.value)}, 23.5 ${f1(y2)}`
+})
 </script>
 
 <style scoped>

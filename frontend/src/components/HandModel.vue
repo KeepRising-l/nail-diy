@@ -71,14 +71,15 @@ function slotWidth(f) {
   return Math.round(f.w * scale.value * 10) / 10
 }
 
-/** 槽位定位：中心锚在本甲中心，随指轴旋转 */
+/** 槽位定位：中心锚在本甲中心，随指轴旋转。
+ *  +180°：NailArt 画布 y=0 为甲根、y 增大朝指尖，翻转后自由缘（指尖）朝离开手腕的方向 */
 function slotStyle(i) {
   const f = FINGERS[i]
   return {
     left: (f.x / HAND_VB.w) * 100 + '%',
     top: (f.y / HAND_VB.h) * 100 + '%',
     width: slotWidth(f) + 'px',
-    transform: `translate(-50%, -50%) rotate(${f.angle}deg)`
+    transform: `translate(-50%, -50%) rotate(${f.angle + 180}deg)`
   }
 }
 </script>

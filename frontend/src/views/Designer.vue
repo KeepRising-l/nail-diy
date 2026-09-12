@@ -54,6 +54,7 @@
                            :active="index === activeFinger"
                            :index="index"
                            :width="width"
+                           :length="finger.length"
                            :gradient="finger.gradient"
                            :cat-eye="finger.catEye"
                            :adjust="finger.adjust"
@@ -92,6 +93,7 @@
                   :active="i === activeFinger"
                   :index="i"
                   :width="widthByIndex[i]"
+                  :length="f.length"
                   :gradient="f.gradient"
                   :cat-eye="f.catEye"
                   :adjust="f.adjust"
@@ -130,6 +132,7 @@
                     :active="false"
                     :index="activeFinger"
                     :width="ZOOMED_NAIL_W"
+                    :length="fingers[activeFinger].length"
                     :gradient="fingers[activeFinger].gradient"
                     :cat-eye="fingers[activeFinger].catEye"
                     :adjust="fingers[activeFinger].adjust"
@@ -208,11 +211,30 @@
                      :class="{ active: fingers[activeFinger].shapeId === m.id }"
                      @click="selectShape(m.id)">
                   <div class="shape-preview">
-                    <NailArt :shape="m" :color="'#F5EADF'" :width="44" />
+                    <NailArt :shape="m" :color="'#F5EADF'" :width="44" :length="fingers[activeFinger].length" />
                   </div>
                   <span class="shape-name">{{ m.name }}</span>
                 </div>
                 <empty-box v-if="!shapes.length" text="暂无甲型素材" />
+              </div>
+
+              <!-- 长度：独立于甲型的设计维度（短杏仁到超长杏仁都是杏仁形） -->
+              <div class="fx-block length-block">
+                <div class="fx-head">
+                  <div>
+                    <span class="fx-title">长度</span>
+                    <span class="fx-sub">独立维度 · 只改长短，不改轮廓</span>
+                  </div>
+                  <span class="len-value">{{ lengthLabel }}</span>
+                </div>
+                <div class="fx-body">
+                  <div class="slider-row len-row">
+                    <span class="fx-label">短</span>
+                    <input type="range" min="0.6" max="1.3" step="0.05"
+                           v-model.number="fingers[activeFinger].length" @change="pushHistory" />
+                    <span class="fx-label">长</span>
+                  </div>
+                </div>
               </div>
             </template>
 
@@ -719,6 +741,7 @@ const FRENCH_COLORS = ['#FFFFFF', '#F6D7DE', '#F3E0C0', '#D9E4F2', '#1F1B1A', '#
 function defaultFinger() {
   return {
     shapeId: null,
+    length: 1,                        // 长度系数 0.6~1.3（独立于甲型的设计维度）
     colorId: null,
     patternIds: [],
     gradient: { enabled: false, color2: '', position: 50 },
@@ -931,6 +954,12 @@ const filteredPatterns = computed(() => patternCategory.value === 'ALL'
   : patterns.value.filter(m => m.category === patternCategory.value))
 
 function selectShape(id) { if (active.value.shapeId !== id) { active.value.shapeId = id; pushHistory() } }
+// 长度档位文案（短/自然/标准/加长/超长）
+const LENGTH_LABELS = [[0.75, '短'], [0.95, '自然'], [1.1, '标准'], [1.2, '加长'], [9, '超长']]
+const lengthLabel = computed(() => {
+  const v = active.value?.length || 1
+  return (LENGTH_LABELS.find(l => v < l[0]) || LENGTH_LABELS[3])[1]
+})
 function selectColor(id, code) { if (active.value.colorId !== id) { active.value.colorId = id; hexInput.value = code; pushHistory() } }
 function applyHex() {
   const v = hexInput.value.trim()
@@ -1073,6 +1102,7 @@ function syncAll() {
   const src = JSON.parse(JSON.stringify(active.value))
   fingers.value.forEach(f => {
     f.shapeId = src.shapeId
+    f.length = src.length
     f.colorId = src.colorId
     f.patternIds = [...src.patternIds]
     f.gradient = JSON.parse(JSON.stringify(src.gradient))
@@ -1139,6 +1169,7 @@ function validId(list, id) { return list.some(m => m.id === id) }
 function mergeFinger(target, fp) {
   const def = defaultFinger()
   target.shapeId = validId(shapes.value, fp.shapeId) ? fp.shapeId : target.shapeId
+  target.length = Math.min(1.3, Math.max(0.6, Number(fp.length) || 1))
   if (validId(colors.value, fp.colorId)) target.colorId = fp.colorId
   target.patternIds = (fp.patternIds || []).filter(id => validId(patterns.value, id))
   if (fp.gradient) target.gradient = { ...def.gradient, ...fp.gradient }
@@ -1499,7 +1530,7 @@ async function save() {
 /* 甲型卡片 */
 .shape-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
 .shape-card {
@@ -2092,6 +2123,19 @@ async function save() {
   .studio { grid-template-columns: 1fr; }
   .preview-wrap { position: relative; top: 0; }
 }
+
+/* ========== 长度控制（独立于甲型的设计维度） ========== */
+.length-block { margin-top: 14px; }
+.len-value {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  background: var(--color-primary-light-9);
+  color: var(--color-primary);
+  border-radius: var(--radius-full);
+}
+.len-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
 
 /* ========== 视图切换 + 手模容器 ========== */
 .stage-head-right {
