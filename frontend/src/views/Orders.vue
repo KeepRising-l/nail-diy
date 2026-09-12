@@ -20,13 +20,14 @@
             <el-tag :type="statusTagType(o.order.status)">{{ statusLabel(o.order.status) }}</el-tag>
           </div>
 
-          <div v-for="it in o.items" :key="it.id" class="item-row">
+          <div v-for="it in o.items" :key="it.id" class="item-row" @click="openDesignDetail(it)">
             <el-image v-if="it.previewUrl" :src="it.previewUrl" fit="contain" class="thumb" />
             <div v-else class="thumb thumb-empty">无快照</div>
             <div class="item-info">
               <div class="item-name">{{ it.designName }}</div>
               <div class="item-sub">￥{{ it.price }} × {{ it.quantity }}</div>
             </div>
+            <span class="detail-link">设计详情 ›</span>
           </div>
 
           <div class="order-meta">
@@ -74,6 +75,7 @@
             <div>
               <el-button v-if="o.order.status === 'PENDING_PAY'" type="primary"
                          @click="confirmPay(o)">立即支付</el-button>
+              <el-button v-if="canRebuy(o)" plain @click="buyAgain(o)">再来一副</el-button>
               <el-button v-if="(o.order.status === 'VERIFIED' || o.order.status === 'RECEIVED') && !o.review"
                          type="warning" @click="openReview(o)">评价</el-button>
               <el-popconfirm v-if="o.order.status === 'SHIPPED'" title="确认已收到商品？"
@@ -122,14 +124,39 @@
         <el-button type="primary" :loading="reviewing" @click="submitReview">发表评价</el-button>
       </template>
     </el-dialog>
+
+    <!-- 设计详情：所见即所得（下单时刻的预览图 + 参数清单） -->
+    <el-dialog v-model="showDetail" title="设计详情 · 所见即所得" width="520px">
+      <template v-if="detail">
+        <div class="detail-hero">
+          <el-image v-if="detail.previewUrl" :src="detail.previewUrl" fit="contain" class="detail-img"
+                    :preview-src-list="[detail.previewUrl]" preview-teleported />
+          <div v-else class="detail-img detail-img-empty">无快照</div>
+        </div>
+        <p class="detail-assure">
+          <el-icon><CircleCheckFilled /></el-icon>
+          按此预览与配置手工制作，发货前会再比对一遍
+        </p>
+        <div class="detail-name">{{ detail.name }}</div>
+        <div v-for="(f, i) in detail.fingers" :key="i" class="detail-finger">
+          <span class="df-name">{{ f.name }}</span>
+          <span class="df-chip" :style="{ background: f.colorCode }"></span>
+          <span class="df-text">{{ f.shape }} · {{ f.lenLabel }} · {{ f.colorName }}</span>
+          <span v-if="f.patterns.length" class="df-pat">贴花：{{ f.patterns.join(' / ') }}</span>
+          <span v-if="f.extras.length" class="df-extra">{{ f.extras.join(' · ') }}</span>
+        </div>
+        <p v-if="!detail.fingers.length" class="detail-empty">该订单未包含参数快照（旧数据），以预览图为准</p>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, CircleCheckFilled } from '@element-plus/icons-vue'
 import request from '../utils/request'
+import { useRouter } from 'vue-router'
 
 const TABS = [
   { label: '全部', value: '' },
@@ -270,6 +297,82 @@ async function submitReview() {
 }
 
 onMounted(loadOrders)
+
+// ---- 设计详情（所见即所得）：点击订单内商品行，展示下单时刻的预览图与参数清单 ----
+const router = useRouter()
+const showDetail = ref(false)
+const detail = ref(null)
+const FINGER_NAMES = ['小指', '无名指', '中指', '食指', '大拇指']
+const LEN_LABELS = [[0.85, '贴合'], [1.15, '标准'], [1.45, '加长'], [9, '极长']]
+const STYLE_NAMES = { FRENCH: '微笑线', OMBRE: '渐变晕染', DOTS: '波点', LEOPARD: '豹纹', MARBLE: '大理石', TORTOISE: '玳瑁琥珀', AURA: '极光晕染', SWIRLS: '复古曲线', GEO: '几何拼色', STARS: '星星点缀' }
+let matCache = null   // { shapes, colors, patterns } id → 素材，进程内缓存一次
+
+async function ensureMaterials() {
+  if (matCache) return matCache
+  const toMap = (list) => new Map((list || []).map(m => [m.id, m]))
+  const [s, c, p] = await Promise.all([
+    request.get('/materials', { params: { type: 'SHAPE' } }),
+    request.get('/materials', { params: { type: 'COLOR' } }),
+    request.get('/materials', { params: { type: 'PATTERN_IMG' } })
+  ])
+  matCache = { shapes: toMap(s.data), colors: toMap(c.data), patterns: toMap(p.data) }
+  return matCache
+}
+
+function parseDesignFingers(paramsStr) {
+  const m = matCache || { shapes: new Map(), colors: new Map(), patterns: new Map() }
+  try {
+    const p = JSON.parse(paramsStr || '{}')
+    return (p.fingers || []).map((f, i) => {
+      const len = Number(f.length) || 1
+      const lenLabel = (LEN_LABELS.find(l => len < l[0]) || [9, '极长'])[1]
+      const extras = []
+      if (f.french?.enabled) extras.push('法式')
+      if (f.dots?.enabled) extras.push(f.dots.kind === 'leopard' ? '豹纹' : '波点')
+      if (f.catEye?.enabled) extras.push('猫眼')
+      if (f.gradient?.enabled) extras.push('渐变')
+      if (f.patternStyle?.code) extras.push(STYLE_NAMES[f.patternStyle.code] || f.patternStyle.code)
+      return {
+        name: FINGER_NAMES[i] || `第 ${i + 1} 指`,
+        shape: m.shapes.get(f.shapeId)?.name || '—',
+        colorName: m.colors.get(f.colorId)?.name || '定制色',
+        colorCode: m.colors.get(f.colorId)?.colorCode || '#EFE7DC',
+        lenLabel,
+        patterns: (f.patternIds || []).map(id => m.patterns.get(id)?.name).filter(Boolean),
+        extras
+      }
+    })
+  } catch (e) {
+    return []   // 旧数据/解析失败：弹层内只展示预览图
+  }
+}
+
+async function openDesignDetail(it) {
+  await ensureMaterials()
+  detail.value = {
+    name: it.designName,
+    previewUrl: it.previewUrl,
+    fingers: parseDesignFingers(it.designParams)
+  }
+  showDetail.value = true
+}
+
+// ---- 一键复购：已完成/已核销/已签收的订单，按原设计直接加购 ----
+function canRebuy(o) {
+  return ['RECEIVED', 'VERIFIED', 'COMPLETED'].includes(o.order.status) && o.items?.length
+}
+
+function buyAgain(o) {
+  return request.post('/cart', { designId: o.items[0].designId, quantity: 1 })
+    .then(() => {
+      ElMessageBox.confirm('已按原设计加入购物车，去结算还是继续逛逛？', '再来一副', {
+        confirmButtonText: '去结算',
+        cancelButtonText: '继续逛逛',
+        type: 'success'
+      }).then(() => router.push('/checkout')).catch(() => {})
+    })
+}
+
 </script>
 
 <style scoped>
@@ -278,7 +381,22 @@ onMounted(loadOrders)
 .order-card { border: 1px solid #e4e7ed; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
 .order-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .order-no { font-size: 13px; color: #8A8177; }
-.item-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.item-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer; }
+.item-row:hover { background: #FBF7F0; border-radius: 8px; }
+.detail-link { margin-left: auto; font-size: 12px; color: #C8813C; white-space: nowrap; }
+.detail-hero { text-align: center; background: #F5EFE6; border-radius: 10px; padding: 10px; }
+.detail-img { width: 100%; height: 260px; border-radius: 8px; background: #fff; }
+.detail-img-empty { display: flex; align-items: center; justify-content: center; color: #c0c4cc; }
+.detail-assure { display: flex; align-items: center; gap: 6px; justify-content: center;
+                 font-size: 13px; color: #7E947A; margin: 10px 0 4px; }
+.detail-name { font-weight: 700; margin: 4px 0 8px; }
+.detail-finger { display: flex; align-items: center; gap: 8px; font-size: 13px;
+                 padding: 7px 4px; border-bottom: 1px dashed #EDE5D8; flex-wrap: wrap; }
+.df-name { width: 42px; color: #8A8177; }
+.df-chip { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.12); }
+.df-text { color: #4A4238; }
+.df-pat, .df-extra { width: 100%; padding-left: 50px; font-size: 12px; color: #8A8177; }
+.detail-empty { font-size: 12px; color: #8A8177; text-align: center; }
 .thumb { width: 48px; height: 48px; border-radius: 6px; background: #F1EDE9; flex-shrink: 0; }
 .thumb-empty { display: flex; align-items: center; justify-content: center; color: #c0c4cc;
                font-size: 11px; border: 1px dashed #e4e7ed; }

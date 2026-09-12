@@ -688,6 +688,29 @@
       </div>
     </div>
 
+    <!-- 保存完成浮层：完成即转化（继续编辑 / 加入购物车 / 立即结算） -->
+    <div v-if="showSaved" class="saved-veil" @click.self="showSaved = false">
+      <div class="saved-card">
+        <div class="saved-badge">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <h3 class="saved-title">设计已保存</h3>
+        <img v-if="lastLocalPreview" :src="lastLocalPreview" class="saved-thumb" alt="设计预览" />
+        <p class="saved-name">{{ designName }}</p>
+        <p class="saved-sub">￥39.00 / 副 · 手工定制 · 可在"我的设计"中随时修改</p>
+        <div class="saved-actions">
+          <button class="sv-btn sv-ghost" @click="showSaved = false">继续编辑</button>
+          <button class="sv-btn sv-line" :disabled="addingCart" @click="addSavedToCart(false)">
+            {{ addingCart ? '加入中…' : '加入购物车' }}
+          </button>
+          <button class="sv-btn sv-primary" :disabled="addingCart" @click="addSavedToCart(true)">
+            {{ addingCart ? '处理中…' : '立即结算' }}
+          </button>
+        </div>
+        <router-link class="saved-link" to="/my-designs">查看我的设计 ›</router-link>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -1276,6 +1299,8 @@ const previewRef = ref(null)
 async function capturePreview() {
   try {
     const canvas = await html2canvas(previewRef.value, { backgroundColor: '#ffffff', scale: 1 })
+    // 同一次渲染顺便留下本地缩略图，供"已保存"完成浮层即时展示（不用等上传回链）
+    lastLocalPreview.value = canvas.toDataURL('image/jpeg', 0.72)
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
     if (!blob) return ''
     const fd = new FormData()
@@ -1283,6 +1308,25 @@ async function capturePreview() {
     const res = await request.post('/designs/upload/preview', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     return res.data
   } catch (e) { return '' }
+}
+
+// ---- 保存完成浮层：完成即转化，就地给出 继续编辑 / 加入购物车 / 立即结算 ----
+const showSaved = ref(false)
+const lastLocalPreview = ref('')
+const addingCart = ref(false)
+function addSavedToCart(goCheckout) {
+  if (addingCart.value) return
+  addingCart.value = true
+  request.post('/cart', { designId: editingId.value, quantity: 1 })
+    .then(() => {
+      if (goCheckout) {
+        router.push('/checkout')
+      } else {
+        ElMessage.success('已加入购物车，可在右上角购物车查看')
+        showSaved.value = false
+      }
+    })
+    .finally(() => { addingCart.value = false })
 }
 
 async function save() {
@@ -1308,8 +1352,7 @@ async function save() {
     if (previewUrl) {
       await request.put(`/designs/${id}`, { ...body, previewUrl })
     }
-    ElMessage.success('设计已保存')
-    router.push('/my-designs')
+    showSaved.value = true
   } catch (e) {
     // request.js 已统一弹错误提示，此处吸掉避免未捕获异常
   } finally {
@@ -2344,4 +2387,49 @@ async function save() {
   background: #fff;
   outline: none;
 }
+
+/* ========== 保存完成浮层 ========== */
+.saved-veil {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(60, 45, 35, 0.42);
+  backdrop-filter: blur(2px);
+  display: grid; place-items: center;
+}
+.saved-card {
+  width: 340px;
+  background: var(--color-canvas, #F7EFE2);
+  border-radius: 16px;
+  padding: 26px 26px 18px;
+  text-align: center;
+  box-shadow: 0 18px 48px rgba(60, 40, 25, 0.25);
+}
+.saved-badge {
+  width: 44px; height: 44px; margin: 0 auto 10px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: #fff;
+  background: var(--color-primary);
+}
+.saved-title { margin: 0 0 12px; font-size: 18px; }
+.saved-thumb {
+  width: 100%; height: 190px; object-fit: cover;
+  border-radius: 12px; border: 1px solid rgba(160, 120, 80, 0.18);
+  background: #fff;
+}
+.saved-name { margin: 10px 0 2px; font-weight: 700; }
+.saved-sub { margin: 0 0 14px; font-size: 12px; color: #8A8177; }
+.saved-actions { display: flex; gap: 8px; }
+.sv-btn {
+  flex: 1; padding: 9px 0;
+  border-radius: 10px; border: 1px solid transparent;
+  font-size: 13px; cursor: pointer;
+}
+.sv-ghost { background: transparent; border-color: rgba(160, 120, 80, 0.35); color: #7A6A58; }
+.sv-ghost:hover { background: rgba(160, 120, 80, 0.08); }
+.sv-line { background: #fff; border-color: var(--color-primary); color: var(--color-primary); }
+.sv-primary { background: var(--color-primary); color: #fff; }
+.sv-primary:hover { filter: brightness(1.05); }
+.sv-btn:disabled { opacity: 0.6; cursor: default; }
+.saved-link { display: inline-block; margin-top: 12px; font-size: 12px; color: #8A8177; }
+.saved-link:hover { color: var(--color-primary); }
 </style>
