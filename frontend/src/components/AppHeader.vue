@@ -26,8 +26,9 @@
 
       <div class="actions">
         <template v-if="auth.token">
-          <router-link to="/my-designs" class="user-chip">
-            <span class="avatar-dot"></span>
+          <router-link to="/profile" class="user-chip">
+            <el-avatar v-if="auth.user?.avatar" :size="22" :src="auth.user.avatar" class="avatar-img" />
+            <span v-else class="avatar-dot"></span>
             {{ auth.user?.nickname || '我' }}
           </router-link>
           <el-button text @click="onLogout">退出登录</el-button>
@@ -198,6 +199,7 @@ onMounted(loadCart)
   border-radius: 50%;
   background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
 }
+.avatar-img { flex-shrink: 0; }
 .cart-btn {
   position: relative;
   width: 40px; height: 40px;

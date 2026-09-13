@@ -16,6 +16,11 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('token', token)
       localStorage.setItem('user', JSON.stringify(user))
     },
+    // 个人信息修改后同步本地状态（顶栏昵称/头像即时更新）
+    setUser(user) {
+      this.user = user
+      localStorage.setItem('user', JSON.stringify(user))
+    },
     logout() {
       this.token = ''
       this.user = null
