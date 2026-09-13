@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""自提门店 + 演示商家种子数据：结算页"到店自提"与商家后台登录的演示环境。
+"""自提门店 + 演示账号种子数据：结算页"到店自提"、商家后台、管理端登录的演示环境。
 - 写入本地 MySQL（root，密码取 MYSQL_PASSWORD 环境变量，默认 1234），脚本幂等
   1) store 表 3 家营业中门店（字段以 schema.sql 的 store 表为准，无经纬度字段）
-  2) 演示商家账号 13900009999（角色 MERCHANT，昵称"演示商家"，密码与顾客测试账号 13800001234 相同）
-     —— 复用其 BCrypt 哈希，因此密码即 Abc123456；若顾客测试账号不存在则跳过并提示
-用法：python frontend/scripts/seed-stores.py（需先执行 schema.sql 完成建库）
+  2) 演示商家账号 13900009999（角色 MERCHANT，昵称"演示商家"）
+  3) 平台管理员账号 13900000001（角色 ADMIN，昵称"平台管理员"）
+     —— 两者密码均复用顾客测试账号 13800001234 的 BCrypt 哈希，因此密码即 Abc123456；
+        若顾客测试账号不存在则跳过并提示
+用法：python frontend/scripts/seed-stores.py（需先执行 schema.sql 完成建库并注册顾客测试账号）
 """
 import os
 import pymysql
@@ -18,28 +20,32 @@ STORES = [
          phone='027-82996666', business_hours='工作日 09:30-18:30（节假日休息）', sort=3),
 ]
 
-MERCHANT_PHONE = '13900009999'
 CUSTOMER_PHONE = '13800001234'
+ACCOUNTS = [
+    dict(phone='13900009999', nickname='演示商家', role='MERCHANT'),
+    dict(phone='13900000001', nickname='平台管理员', role='ADMIN'),
+]
 
-def seed_merchant(cur):
+def seed_accounts(cur):
     cur.execute('SELECT password FROM user WHERE phone = %s', (CUSTOMER_PHONE,))
     row = cur.fetchone()
     if not row:
-        print('skip merchant seed: 顾客测试账号', CUSTOMER_PHONE, '不存在（请先注册或手工插入）')
+        print('skip account seed: 顾客测试账号', CUSTOMER_PHONE, '不存在（请先注册或手工插入）')
         return
-    cur.execute('SELECT COUNT(*) FROM user WHERE phone = %s', (MERCHANT_PHONE,))
-    if cur.fetchone()[0]:
-        return
-    cur.execute(
-        'INSERT INTO user (phone, password, nickname, avatar, role, status) VALUES (%s, %s, %s, %s, %s, 1)',
-        (MERCHANT_PHONE, row[0], '演示商家', '', 'MERCHANT'))
-    print('seeded merchant', MERCHANT_PHONE, '(role=MERCHANT, 密码同顾客测试账号)')
+    for acc in ACCOUNTS:
+        cur.execute('SELECT COUNT(*) FROM user WHERE phone = %s', (acc['phone'],))
+        if cur.fetchone()[0]:
+            continue
+        cur.execute(
+            'INSERT INTO user (phone, password, nickname, avatar, role, status) VALUES (%s, %s, %s, %s, %s, 1)',
+            (acc['phone'], row[0], acc['nickname'], '', acc['role']))
+        print('seeded', acc['role'], acc['phone'], '(密码同顾客测试账号)')
 
 def main():
     conn = pymysql.connect(host='localhost', port=3306, user='root',
                            password=os.environ.get('MYSQL_PASSWORD', '1234'), database='nail_diy')
     cur = conn.cursor()
-    seed_merchant(cur)
+    seed_accounts(cur)
     for s in STORES:
         cur.execute(
             'INSERT INTO store (name, address, phone, business_hours, status, sort, deleted) '
@@ -55,4 +61,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 

@@ -1,6 +1,11 @@
 <template>
+  <!-- 管理端：平台管理布局 -->
+  <admin-layout v-if="isAdmin">
+    <router-view />
+  </admin-layout>
+
   <!-- 商家端：独立后台布局 -->
-  <merchant-layout v-if="isMerchant">
+  <merchant-layout v-else-if="isMerchant">
     <router-view />
   </merchant-layout>
 
@@ -18,7 +23,9 @@ import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
 import MerchantLayout from './components/MerchantLayout.vue'
+import AdminLayout from './components/AdminLayout.vue'
 
 const route = useRoute()
 const isMerchant = computed(() => route.path.startsWith('/merchant'))
+const isAdmin = computed(() => route.path.startsWith('/admin'))
 </script>
