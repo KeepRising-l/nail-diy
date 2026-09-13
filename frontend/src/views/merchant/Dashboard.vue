@@ -68,6 +68,7 @@ const quickLinks = [
   { label: '素材管理', path: '/merchant/materials' },
   { label: '模板管理', path: '/merchant/templates' },
   { label: '评价管理', path: '/merchant/reviews' },
+  { label: '公告管理', path: '/merchant/notices' },
   { label: '销售统计', path: '/merchant/analytics' }
 ]
 

@@ -50,6 +50,22 @@
       </div>
     </section>
 
+    <!-- 平台公告：置顶优先，点击查看全文 -->
+    <section class="notices" v-if="notices.length">
+      <div class="container">
+        <div class="notice-bar">
+          <span class="notice-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l18-7-7 18-2.5-7.5L3 11z"/></svg>
+            公告
+          </span>
+          <button v-for="n in notices" :key="n.id" class="notice-item" @click="activeNotice = n">
+            <span v-if="n.isTop === 1" class="notice-top">置顶</span>
+            <span class="notice-title">{{ n.title }}</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- 三步流程：大数字 + 极简 -->
     <section class="features">
       <div class="container">
@@ -108,6 +124,11 @@
       </div>
     </section>
 
+    <!-- 公告全文 -->
+    <el-dialog v-model="showNotice" :title="activeNotice?.title" width="480px">
+      <p class="notice-content">{{ activeNotice?.content }}</p>
+    </el-dialog>
+
     <!-- CTA 极简 -->
     <section class="cta">
       <div class="container cta-inner">
@@ -121,10 +142,16 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import request from '../utils/request'
 
 const records = ref([])
+const notices = ref([])
+const activeNotice = ref(null)
+const showNotice = computed({
+  get: () => activeNotice.value !== null,
+  set: (v) => { if (!v) activeNotice.value = null }
+})
 const FEATURES = [
   { tag: '在线定制',   title: '在线设计',   desc: '甲型、颜色、图案自由组合。点击手指即可独立编辑每一根指甲的细节。' },
   { tag: '匠心手作',  title: '商家制作',   desc: '设计确认后，合作美甲师按你的参数 1:1 精工制作，全程可追踪。' },
@@ -136,6 +163,11 @@ onMounted(async () => {
     const res = await request.get('/templates', { params: { page: 1, size: 8 } })
     records.value = res.data?.records || []
   } catch (e) { records.value = [] }
+  // 公告游客可见（接口公开），加载失败不阻塞首页
+  try {
+    const res = await request.get('/notices')
+    notices.value = res.data || []
+  } catch (e) { notices.value = [] }
 })
 
 function goDesign()   { location.href = '/designer' }
@@ -291,6 +323,67 @@ function goRegister() { location.href = '/register' }
   opacity: 0.82;
 }
 .corner-br svg { color: var(--color-primary); }
+
+/* ================= 平台公告 ================= */
+.notices { padding: var(--space-md) 0; }
+.notice-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 12px 20px;
+  background: var(--color-card, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 12px);
+}
+.notice-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+.notice-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--color-muted-foreground);
+  transition: color .15s ease;
+}
+.notice-item:hover .notice-title { color: var(--color-foreground); }
+.notice-title {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color .15s ease;
+}
+.notice-top {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: var(--color-primary-light-9);
+  padding: 1px 8px;
+  border-radius: var(--radius-full, 999px);
+}
+.notice-content {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--color-foreground);
+  white-space: pre-wrap;
+}
 
 /* ================= Features ================= */
 .features {

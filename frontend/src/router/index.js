@@ -86,6 +86,12 @@ const routes = [
     meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
   },
   {
+    path: '/merchant/notices',
+    name: 'merchantNotices',
+    component: () => import('../views/merchant/Notices.vue'),
+    meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
+  },
+  {
     path: '/merchant/analytics',
     name: 'merchantAnalytics',
     component: () => import('../views/merchant/Analytics.vue'),
