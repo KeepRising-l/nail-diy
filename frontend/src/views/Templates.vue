@@ -14,9 +14,15 @@
       <div class="filter-row">
         <button v-for="tag in tags" :key="tag"
                 class="filter-pill"
-                :class="{ active: query.styleTag === tag }"
+                :class="{ active: !favMode && query.styleTag === tag }"
                 @click="switchTag(tag)">
           {{ tag === '' ? '全部' : tag }}
+        </button>
+        <button class="filter-pill fav-pill"
+                :class="{ active: favMode }"
+                @click="switchFav">
+          <svg width="12" height="12" viewBox="0 0 24 24" :fill="favMode ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2.2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          我的收藏
         </button>
       </div>
 
@@ -30,6 +36,10 @@
           <div class="cover">
             <img v-if="t.coverUrl" :src="t.coverUrl" :alt="t.name" />
             <div v-else class="placeholder">{{ t.name }}</div>
+            <button class="fav-btn" :class="{ on: isFav(t.id) }" title="收藏"
+                    @click.stop.prevent="toggleFav(t)">
+              <svg width="15" height="15" viewBox="0 0 24 24" :fill="isFav(t.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2.2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </button>
             <span class="use-overlay">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
               套用此款
@@ -46,7 +56,7 @@
       </div>
       <div v-if="!loading && list.length === 0" class="empty">
         <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 2 6 5v6c0 5 3 8 6 10 3-2 6-5 6-10V5l-6-3Z"/></svg>
-        <p>暂无该分类款式，试试其它标签吧。</p>
+        <p>{{ favMode ? '还没有收藏的款式，点亮卡片左上角的红心试试吧。' : '暂无该分类款式，试试其它标签吧。' }}</p>
       </div>
 
       <!-- 分页：极简 -->
@@ -68,6 +78,7 @@
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import request from '../utils/request'
 
 const router = useRouter()
@@ -76,11 +87,17 @@ const query = reactive({ styleTag: '', page: 1, size: 12 })
 const list = ref([])
 const total = ref(0)
 const loading = ref(false)
+// 收藏：favMode 时列表来自 /favorites，红心集合驱动卡片标记
+const favMode = ref(false)
+const favIds = ref(new Set())
+
+function isFav(id) { return favIds.value.has(id) }
 
 async function loadList() {
   loading.value = true
   try {
-    const res = await request.get('/templates', { params: query })
+    const url = favMode.value ? '/favorites' : '/templates'
+    const res = await request.get(url, { params: query })
     list.value = res.data.records || []
     total.value = res.data.total || 0
   } finally {
@@ -88,14 +105,52 @@ async function loadList() {
   }
 }
 
+async function loadFavIds() {
+  try {
+    const res = await request.get('/favorites/ids')
+    favIds.value = new Set(res.data || [])
+  } catch (e) { favIds.value = new Set() }
+}
+
+async function toggleFav(t) {
+  try {
+    const res = await request.post(`/favorites/${t.id}/toggle`)
+    if (res.data) {
+      favIds.value = new Set([...favIds.value, t.id])
+      ElMessage.success(`已收藏「${t.name}」`)
+    } else {
+      const next = new Set(favIds.value)
+      next.delete(t.id)
+      favIds.value = next
+      ElMessage.info('已取消收藏')
+      if (favMode.value) {
+        // 收藏页里取消后从列表移除
+        list.value = list.value.filter(item => item.id !== t.id)
+        total.value = Math.max(0, total.value - 1)
+      }
+    }
+  } catch (e) { /* 401 已由 request 拦截器统一处理 */ }
+}
+
 function switchTag(tag) {
+  favMode.value = false
   query.styleTag = tag
   query.page = 1
   window.scrollTo({ top: 0, behavior: 'smooth' })
   loadList()
 }
 
-onMounted(loadList)
+function switchFav() {
+  favMode.value = !favMode.value
+  query.styleTag = ''
+  query.page = 1
+  loadList()
+}
+
+onMounted(() => {
+  loadList()
+  loadFavIds()
+})
 </script>
 
 <style scoped>
@@ -156,6 +211,29 @@ onMounted(loadList)
   color: #fff;
   border-color: var(--color-foreground);
 }
+.fav-pill { display: inline-flex; align-items: center; gap: 5px; }
+.fav-pill.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* 收藏红心：封面左上角，收藏后常亮 */
+.fav-btn {
+  position: absolute;
+  top: 14px; left: 14px;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  background: rgba(255,255,255,0.94);
+  border: none;
+  border-radius: 50%;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  transition: all .15s ease;
+  z-index: 1;
+}
+.fav-btn:hover { transform: scale(1.1); color: #E5527E; }
+.fav-btn.on { color: #E5527E; }
 
 /* 卡片网格 */
 .grid {
