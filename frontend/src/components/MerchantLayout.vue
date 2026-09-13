@@ -24,6 +24,9 @@
         <el-menu-item index="/merchant/notices">
           <el-icon><Bell /></el-icon><span>公告管理</span>
         </el-menu-item>
+        <el-menu-item index="/merchant/stores">
+          <el-icon><Shop /></el-icon><span>门店管理</span>
+        </el-menu-item>
         <el-menu-item index="/merchant/analytics">
           <el-icon><PieChart /></el-icon><span>销售统计</span>
         </el-menu-item>
