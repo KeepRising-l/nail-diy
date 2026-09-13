@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../store/auth'
+import { useCartStore } from '../store/cart'
 import router from '../router'
 
 // 统一 Axios 实例：注入 token、统一错误提示、401 跳登录
@@ -27,6 +28,11 @@ request.interceptors.response.use(
         router.push('/login')
       }
       return Promise.reject(new Error(res.message || '请求失败'))
+    }
+    // 购物车写操作成功后刷新顶栏徽标（设计台加购/我的设计追单/购物车增删清等全局生效）
+    const cfg = response.config
+    if (cfg.method !== 'get' && (cfg.url || '').startsWith('/cart')) {
+      useCartStore().refresh()
     }
     return res
   },

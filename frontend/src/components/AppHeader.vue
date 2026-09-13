@@ -41,7 +41,7 @@
         </template>
         <router-link to="/cart" class="cart-btn" aria-label="购物车">
           <el-icon :size="20"><ShoppingCart /></el-icon>
-          <el-badge v-if="cartCount > 0" :value="cartCount" class="cart-badge" />
+          <el-badge v-if="cartStore.count > 0" :value="cartStore.count" class="cart-badge" />
         </router-link>
       </div>
     </div>
@@ -49,31 +49,30 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import request from '../utils/request'
 import { useAuthStore } from '../store/auth'
+import { useCartStore } from '../store/cart'
 import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
+const cartStore = useCartStore()
 const router = useRouter()
-const cartCount = ref(0)
+const route = useRoute()
 
-async function loadCart() {
-  if (!auth.token) { cartCount.value = 0; return }
-  try {
-    const res = await request.get('/cart')
-    cartCount.value = res.data.reduce((s, it) => s + it.quantity, 0)
-  } catch (e) {
-    cartCount.value = 0
-  }
-}
+// 登录态变化（登录/退出）与路由切换时同步购物车徽标；加购等写操作由 request 拦截器即时刷新
+watch(() => auth.token, () => cartStore.refresh())
+watch(() => route.path, () => cartStore.refresh())
 
 function onLogout() {
   auth.logout()
   router.push('/login')
 }
 
-onMounted(loadCart)
+onMounted(() => {
+  cartStore.refresh()
+})
 </script>
 
 <style scoped>
