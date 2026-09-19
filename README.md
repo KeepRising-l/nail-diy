@@ -93,4 +93,5 @@ docs/                           功能流程文档
 - **运费规则**：后端 `application.yml` 的 `nail.freight.amount / free-over` 为权威配置，前端结算页仅作展示。
 - **设计参数结构**：`{ fingers: [ { shapeId, length, colorId, overlays, patternIds, gradient, catEye, adjust, french, dots, patternStyle, decorations, patternPos } ] }`，与设计台一致，模板与订单项快照共用。
 - **安全**：JWT 无状态认证；商家接口 `/api/merchant/**` 限 MERCHANT/ADMIN；`nail.jwt.secret` 生产环境请务必更换。
+- **单元测试**：`cd backend && mvn test` 覆盖订单状态机（全流转表/终态封口/非法跳转）与运费规则（满额包邮边界）。
 - **逻辑删除**：核心业务表带 `deleted` 字段，由 MyBatis-Plus `@TableLogic` 统一处理。

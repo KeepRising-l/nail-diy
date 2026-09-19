@@ -28,9 +28,9 @@ public final class OrderStateMachine {
     private OrderStateMachine() {
     }
 
-    /** 校验流转是否合法，非法则抛业务异常（中文提示） */
+    /** 校验流转是否合法，非法（含未知/空状态等脏数据）则抛业务异常（中文提示） */
     public static void assertTransition(String from, String to) {
-        Set<String> allowed = RULES.get(from);
+        Set<String> allowed = from == null ? null : RULES.get(from);
         if (allowed == null || !allowed.contains(to)) {
             throw new BusinessException(ILLEGAL_TRANSITION);
         }

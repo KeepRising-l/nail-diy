@@ -139,7 +139,7 @@ public class OrderService {
             order.setReceiverPhone(address.getPhone());
             order.setReceiverAddr(address.getProvince() + address.getCity() + address.getDistrict() + address.getDetail());
             // 运费规则：满额包邮，否则固定运费
-            order.setFreight(goodsAmount.compareTo(freightFreeOver) >= 0 ? BigDecimal.ZERO : freightAmount);
+            order.setFreight(calcFreight(goodsAmount, freightFreeOver, freightAmount));
         }
 
         order.setGoodsAmount(goodsAmount);
@@ -268,6 +268,11 @@ public class OrderService {
         order.setFinishTime(LocalDateTime.now());
         orderMapper.updateById(order);
         writeLog(order.getId(), from, Order.STATUS_RECEIVED, "顾客", "确认收货");
+    }
+
+    /** 运费规则：满额包邮，否则固定运费（纯函数，与状态机同风格集中管理，便于单元测试） */
+    static BigDecimal calcFreight(BigDecimal goodsAmount, BigDecimal freeOver, BigDecimal fixedAmount) {
+        return goodsAmount.compareTo(freeOver) >= 0 ? BigDecimal.ZERO : fixedAmount;
     }
 
     /** 生成全局唯一的 6 位数字自提码 */
