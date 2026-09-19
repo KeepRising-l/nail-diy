@@ -22,12 +22,13 @@ public class AdminService {
 
     private final UserMapper userMapper;
 
-    /** 用户分页（手机号/昵称关键字、状态可选筛选），新用户在前 */
-    public PageResult<AdminUserVO> userPage(String keyword, Integer status, long page, long size) {
+    /** 用户分页（手机号/昵称关键字、状态、角色可选筛选），新用户在前 */
+    public PageResult<AdminUserVO> userPage(String keyword, Integer status, String role, long page, long size) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()
                 .and(StrUtil.isNotBlank(keyword),
                         w -> w.like(User::getPhone, keyword).or().like(User::getNickname, keyword))
                 .eq(status != null, User::getStatus, status)
+                .eq(StrUtil.isNotBlank(role), User::getRole, role)
                 .orderByDesc(User::getId);
         Page<User> result = userMapper.selectPage(new Page<>(page, size), wrapper);
         List<AdminUserVO> records = result.getRecords().stream().map(AdminUserVO::from).toList();

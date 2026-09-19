@@ -35,9 +35,10 @@ public class AdminUserController {
     @GetMapping
     public Result<PageResult<AdminUserVO>> page(@RequestParam(required = false) String keyword,
                                                 @RequestParam(required = false) Integer status,
+                                                @RequestParam(required = false) String role,
                                                 @RequestParam(defaultValue = "1") long page,
                                                 @RequestParam(defaultValue = "10") long size) {
-        return Result.ok(adminService.userPage(keyword, status, page, size));
+        return Result.ok(adminService.userPage(keyword, status, role, page, size));
     }
 
     /** 启用/禁用账号（禁用后无法登录） */
