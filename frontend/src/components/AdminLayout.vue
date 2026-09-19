@@ -6,6 +6,9 @@
         <span>平台管理</span>
       </div>
       <el-menu :default-active="activeMenu" router class="menu">
+        <el-menu-item index="/admin/dashboard">
+          <el-icon><TrendCharts /></el-icon><span>数据看板</span>
+        </el-menu-item>
         <el-menu-item index="/admin/users">
           <el-icon><UserFilled /></el-icon><span>用户管理</span>
         </el-menu-item>
