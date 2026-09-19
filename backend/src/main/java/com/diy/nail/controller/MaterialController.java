@@ -1,5 +1,6 @@
 package com.diy.nail.controller;
 
+import com.diy.nail.common.BusinessException;
 import com.diy.nail.common.Result;
 import com.diy.nail.entity.Material;
 import com.diy.nail.service.FileService;
@@ -26,14 +27,15 @@ public class MaterialController {
     private final MaterialService materialService;
     private final FileService fileService;
 
-    /** 按类型获取上架素材（图案可按 category 分类，支持标签/关键字检索），按排序号升序 */
+    /** 按类型获取上架素材（图案可按 category 分类，支持标签/关键字检索），按排序号升序；登录用户额外可见本人待审贴纸 */
     @GetMapping
     public Result<List<Material>> list(
+            Authentication authentication,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String tag,
             @RequestParam(required = false) String keyword) {
-        return Result.ok(materialService.listOnSale(type, category, tag, keyword));
+        return Result.ok(materialService.listOnSale(type, category, tag, keyword, currentUserId(authentication)));
     }
 
     /** 素材热度排行（看板/推荐位用） */
@@ -49,8 +51,16 @@ public class MaterialController {
     public Result<Material> uploadSticker(Authentication authentication,
                                           @RequestParam("file") MultipartFile file,
                                           @RequestParam(required = false) String name) {
-        Long userId = (Long) authentication.getPrincipal();
+        Long userId = currentUserId(authentication);
+        if (userId == null) {
+            throw new BusinessException("请先登录后再上传贴纸");
+        }
         String imageUrl = fileService.uploadImage(file);
         return Result.ok(materialService.createSticker(userId, name, imageUrl));
+    }
+
+    /** 当前登录用户 ID（游客/匿名返回 null） */
+    private Long currentUserId(Authentication authentication) {
+        return authentication != null && authentication.getPrincipal() instanceof Long uid ? uid : null;
     }
 }

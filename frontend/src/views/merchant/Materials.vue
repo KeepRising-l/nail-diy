@@ -17,6 +17,7 @@
         <el-tab-pane label="甲型" name="SHAPE" />
         <el-tab-pane label="色卡" name="COLOR" />
         <el-tab-pane label="图案" name="PATTERN_IMG" />
+        <el-tab-pane label="贴纸" name="STICKER" />
       </el-tabs>
 
       <!-- 搜索栏 -->
@@ -26,6 +27,11 @@
         <el-select v-model="query.status" placeholder="状态" clearable style="width: 120px" @change="loadList">
           <el-option label="上架" :value="1" />
           <el-option label="下架" :value="0" />
+        </el-select>
+        <el-select v-model="query.auditStatus" placeholder="审核状态" clearable style="width: 130px" @change="loadList">
+          <el-option label="待审核" value="PENDING" />
+          <el-option label="已通过" value="APPROVED" />
+          <el-option label="已驳回" value="REJECTED" />
         </el-select>
         <el-button type="primary" @click="loadList">查询</el-button>
       </div>
@@ -41,6 +47,17 @@
         <el-table-column label="类型" width="90">
           <template #default="{ row }">{{ typeLabel(row.type) }}</template>
         </el-table-column>
+        <el-table-column label="来源 / 审核" width="140">
+          <template #default="{ row }">
+            <el-tag :type="row.source === 'UGC' ? 'warning' : 'info'" size="small">
+              {{ row.source === 'UGC' ? 'UGC' : '平台' }}
+            </el-tag>
+            <el-tag v-if="row.auditStatus && row.auditStatus !== 'APPROVED'" size="small"
+                    :type="row.auditStatus === 'PENDING' ? 'warning' : 'danger'" style="margin-left: 4px">
+              {{ auditLabel(row.auditStatus) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="颜色代码" width="110">
           <template #default="{ row }">{{ row.colorCode || '-' }}</template>
         </el-table-column>
@@ -50,8 +67,12 @@
             <el-switch :model-value="row.status === 1" @change="(v) => toggleStatus(row, v)" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="140">
+        <el-table-column label="操作" width="190">
           <template #default="{ row }">
+            <template v-if="row.source === 'UGC' && row.auditStatus === 'PENDING'">
+              <el-button link type="success" @click="auditMaterial(row, true)">通过</el-button>
+              <el-button link type="danger" @click="auditMaterial(row, false)">驳回</el-button>
+            </template>
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-popconfirm title="确定删除该素材？" @confirm="removeMaterial(row)">
               <template #reference>
@@ -136,7 +157,7 @@ const TYPE_LABEL = {
 const typeLabel = (t) => TYPE_LABEL[t] || t
 
 // ---- 列表 ----
-const query = reactive({ type: '', status: undefined, keyword: '', page: 1, size: 10 })
+const query = reactive({ type: '', status: undefined, auditStatus: undefined, keyword: '', page: 1, size: 10 })
 const list = ref([])
 const total = ref(0)
 const loading = ref(false)
@@ -214,6 +235,15 @@ async function submit() {
   } finally {
     saving.value = false
   }
+}
+
+// ---- UGC 贴纸审核 ----
+const auditLabel = (s) => ({ PENDING: '待审核', APPROVED: '已通过', REJECTED: '已驳回' }[s] || s)
+
+async function auditMaterial(row, approved) {
+  await request.post(`/merchant/materials/${row.id}/audit`, { approved })
+  ElMessage.success(approved ? '已通过，贴纸对顾客可见' : '已驳回')
+  loadList()
 }
 
 // ---- 上下架 / 删除 ----

@@ -523,7 +523,7 @@
                 </div>
               </template>
 
-              <!-- ── 贴花（素材库） ── -->
+              <!-- ── 贴花（素材库 + 我的上传） ── -->
               <template v-if="patternSub === 'sticker'">
                 <div class="cat-row">
                   <button v-for="c in patternCats" :key="c.value"
@@ -533,22 +533,28 @@
                     {{ c.label }}
                   </button>
                 </div>
-                <p class="section-desc">可选多个图案叠加到 <b>第 {{ activeFinger + 1 }} · {{ FINGER_NAMES[activeFinger] }}</b>：</p>
+                <div class="sticker-toolbar">
+                  <p class="section-desc">可选多个图案叠加到 <b>第 {{ activeFinger + 1 }} · {{ FINGER_NAMES[activeFinger] }}</b>：</p>
+                  <button class="btn-sticker-upload" @click="triggerStickerUpload">＋ 上传我的贴纸</button>
+                  <input ref="stickerInput" type="file" accept=".png,image/png" hidden @change="onStickerUpload" />
+                </div>
                 <div class="pattern-grid">
                   <div v-for="m in filteredPatterns" :key="m.id"
                        class="pattern-card"
-                       draggable="true" @dragstart="onDragStart($event, { kind: 'pattern', id: m.id })"
+                       :class="{ active: fingers[activeFinger].patternIds.includes(m.id), pending: m.auditStatus === 'PENDING' }"
+                       :draggable="m.auditStatus !== 'PENDING'"
+                       @dragstart="onDragStart($event, { kind: 'pattern', id: m.id })"
                        role="button"
                        tabindex="0"
                        :aria-pressed="fingers[activeFinger].patternIds.includes(m.id)"
                        :aria-label="`图案 ${m.name}`"
-                       @keydown.enter.prevent="togglePattern(m.id)"
-                       @keydown.space.prevent="togglePattern(m.id)"
-                       :class="{ active: fingers[activeFinger].patternIds.includes(m.id) }"
-                       @click="togglePattern(m.id)">
+                       @keydown.enter.prevent="onPatternCardActivate(m)"
+                       @keydown.space.prevent="onPatternCardActivate(m)"
+                       @click="onPatternCardActivate(m)">
                     <div class="pattern-img">
                       <img v-if="m.imageUrl" :src="m.imageUrl" :alt="m.name" />
                       <span v-else class="pi-ph">{{ m.name.slice(0,2) }}</span>
+                      <span v-if="m.auditStatus === 'PENDING'" class="pending-badge">审核中</span>
                     </div>
                     <span class="pattern-name">{{ m.name }}</span>
                     <span v-if="m.category" class="pattern-cat">{{ categoryLabel(m.category) }}</span>
@@ -817,7 +823,7 @@ const patterns = ref([])
 const stylePatterns = ref([])        // 参数化款式（PATTERN_STYLE）
 const decors = ref([])               // 矢量装饰件（DECOR）
 const overlays = ref([])             // 效果覆盖层（OVERLAY：珠光/闪耀/炫光/特殊）
-const CATEGORY_LABELS = { BASIC: '基础', FRENCH: '法式', GRADIENT: '渐变', NATURE: '自然', GEO: '几何', SHINE: '闪钻', CUTE: '可爱' }
+const CATEGORY_LABELS = { BASIC: '基础', FRENCH: '法式', GRADIENT: '渐变', NATURE: '自然', GEO: '几何', SHINE: '闪钻', CUTE: '可爱', UGC: '社区贴纸' }
 function categoryLabel(v) { return CATEGORY_LABELS[v] || v }
 // 图案分类 chips 按实际素材动态生成，避免出现永远为空的死筛选
 const patternCats = computed(() => {
@@ -833,21 +839,61 @@ watch(patternCats, (cats) => {
 
 async function loadMaterials() {
   try {
-    const [s, c, p, sp, d, ov] = await Promise.all([
+    const [s, c, p, sp, d, ov, st] = await Promise.all([
       request.get('/materials', { params: { type: 'SHAPE' } }),
       request.get('/materials', { params: { type: 'COLOR' } }),
       request.get('/materials', { params: { type: 'PATTERN_IMG' } }),
       request.get('/materials', { params: { type: 'PATTERN_STYLE' } }),
       request.get('/materials', { params: { type: 'DECOR' } }),
-      request.get('/materials', { params: { type: 'OVERLAY' } })
+      request.get('/materials', { params: { type: 'OVERLAY' } }),
+      // 贴纸（含本人待审核的 UGC 上传）并入贴花面板
+      request.get('/materials', { params: { type: 'STICKER' } })
     ])
     shapes.value = s.data || []
     colors.value = c.data || []
-    patterns.value = p.data || []
+    patterns.value = [...(p.data || []), ...(st.data || [])]
     stylePatterns.value = sp.data || []
     decors.value = d.data || []
     overlays.value = ov.data || []
   } catch (e) { /* */ }
+}
+
+// -------- UGC 贴纸上传（透明底 PNG；审核通过后全员可见，本人待审期间在"社区贴纸"分类可见） --------
+const stickerInput = ref(null)
+
+function triggerStickerUpload() {
+  stickerInput.value?.click()
+}
+
+async function onStickerUpload(e) {
+  const file = e.target.files && e.target.files[0]
+  e.target.value = ''
+  if (!file) return
+  if (!/\.png$/i.test(file.name)) {
+    ElMessage.warning('请上传透明底 PNG 图片')
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning('图片不能超过 5MB')
+    return
+  }
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    await request.post('/materials/sticker', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    ElMessage.success('上传成功，审核通过后即可使用')
+    await loadMaterials()
+    patternCategory.value = 'UGC'
+  } catch (err) { /* 失败提示由 request 拦截器统一给出 */ }
+}
+
+/** 待审核贴纸不可选用，仅提示状态 */
+function onPatternCardActivate(m) {
+  if (m.auditStatus === 'PENDING') {
+    ElMessage.info('该贴纸审核通过后即可使用')
+    return
+  }
+  togglePattern(m.id)
 }
 
 // -------- 五指状态 --------
@@ -1847,6 +1893,7 @@ async function save() {
   border-color: var(--color-primary);
 }
 .pattern-img {
+  position: relative;
   width: 56px; height: 56px;
   margin: 0 auto 8px;
   border-radius: 10px;
@@ -1877,6 +1924,40 @@ async function save() {
   letter-spacing: 0.3px;
 }
 .pattern-card.active .pattern-name { color: var(--color-primary); }
+/* 待审核 UGC 贴纸：不可选用，右上角挂"审核中" */
+.pattern-card.pending { cursor: not-allowed; opacity: .72; }
+.pattern-card.pending:hover { border-color: transparent; }
+.pending-badge {
+  position: absolute;
+  top: 3px; right: 3px;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: #E6A23C;
+  color: #fff;
+  font-family: var(--font-ui);
+  letter-spacing: .5px;
+}
+/* UGC 贴纸上传入口 */
+.sticker-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.btn-sticker-upload {
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  border: 1px dashed var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-light-9);
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-sticker-upload:hover { background: var(--color-primary); color: #fff; border-style: solid; }
 
 /* ========== 图案子面板切换 ========== */
 .subtabs {

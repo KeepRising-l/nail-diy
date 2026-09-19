@@ -111,6 +111,7 @@ public class MaterialService {
         material.setName(StrUtil.isBlank(name) ? "我的贴纸" : name.trim());
         material.setImageUrl(imageUrl);
         material.setSource(Material.SOURCE_UGC);
+        material.setCategory("UGC");
         material.setCreatorId(userId);
         material.setAuditStatus(Material.AUDIT_PENDING);
         material.setHeat(0);
@@ -120,17 +121,28 @@ public class MaterialService {
         return material;
     }
 
-    /** 顾客端：上架且审核通过的素材（按排序号升序；支持类型/分类/标签/关键字筛选） */
-    public List<Material> listOnSale(String type, String category, String tag, String keyword) {
-        return materialMapper.selectList(new LambdaQueryWrapper<Material>()
+    /**
+     * 顾客端：上架素材（按排序号升序；支持类型/分类/标签/关键字筛选）。
+     * 审核通过的全员可见；UGC 贴纸在上传者本人面前待审核期间也可见，便于确认上传结果。
+     */
+    public List<Material> listOnSale(String type, String category, String tag, String keyword, Long viewerId) {
+        LambdaQueryWrapper<Material> wrapper = new LambdaQueryWrapper<Material>()
                 .eq(StrUtil.isNotBlank(type), Material::getType, type)
                 .eq(StrUtil.isNotBlank(category), Material::getCategory, category)
                 .like(StrUtil.isNotBlank(tag), Material::getTags, tag)
                 .like(StrUtil.isNotBlank(keyword), Material::getName, keyword)
                 .eq(Material::getStatus, 1)
-                .eq(Material::getAuditStatus, Material.AUDIT_APPROVED)
+                .and(w -> {
+                    w.eq(Material::getAuditStatus, Material.AUDIT_APPROVED);
+                    if (viewerId != null) {
+                        w.or(ow -> ow.eq(Material::getSource, Material.SOURCE_UGC)
+                                .eq(Material::getCreatorId, viewerId)
+                                .eq(Material::getAuditStatus, Material.AUDIT_PENDING));
+                    }
+                })
                 .orderByAsc(Material::getSort)
-                .orderByAsc(Material::getId));
+                .orderByAsc(Material::getId);
+        return materialMapper.selectList(wrapper);
     }
 
     /** 素材热度排行（统计看板用，可按类型过滤） */
