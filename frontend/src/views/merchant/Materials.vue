@@ -16,7 +16,7 @@
         <el-tab-pane label="全部" name="" />
         <el-tab-pane label="甲型" name="SHAPE" />
         <el-tab-pane label="色卡" name="COLOR" />
-        <el-tab-pane label="图案" name="PATTERN" />
+        <el-tab-pane label="图案" name="PATTERN_IMG" />
       </el-tabs>
 
       <!-- 搜索栏 -->
@@ -34,9 +34,7 @@
       <el-table :data="list" v-loading="loading">
         <el-table-column label="预览" width="100">
           <template #default="{ row }">
-            <el-image v-if="row.type !== 'COLOR'" :src="row.imageUrl" fit="contain" class="thumb" />
-            <div v-else class="color-block" :style="{ background: row.colorCode }"
-                 :title="row.colorCode" />
+            <MaterialThumb :material="row" :size="60" />
           </template>
         </el-table-column>
         <el-table-column prop="name" label="名称" min-width="140" />
@@ -75,18 +73,28 @@
           <el-radio-group v-model="form.type" :disabled="!!form.id">
             <el-radio value="SHAPE">甲型</el-radio>
             <el-radio value="COLOR">色卡</el-radio>
-            <el-radio value="PATTERN">图案</el-radio>
+            <el-radio value="PATTERN_IMG">图案</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="form.name" maxlength="50" placeholder="请输入素材名称" />
         </el-form-item>
+        <!-- 甲型：代码注册素材，从受支持的 8 个 code 中选，不需要图片 -->
+        <el-form-item v-if="form.type === 'SHAPE'" label="甲型代码">
+          <el-select v-model="form.code" placeholder="请选择甲型轮廓" style="width: 220px"
+                     @change="onShapeCodeChange">
+            <el-option v-for="s in SHAPE_OPTIONS" :key="s.code"
+                       :label="`${s.name}（${s.code}）`" :value="s.code" />
+          </el-select>
+          <MaterialThumb v-if="form.code" class="form-thumb" :size="44"
+                         :material="{ type: 'SHAPE', code: form.code, name: form.name }" />
+        </el-form-item>
         <!-- 色卡：颜色选择器，零图片成本 -->
-        <el-form-item v-if="form.type === 'COLOR'" label="颜色代码">
+        <el-form-item v-else-if="form.type === 'COLOR'" label="颜色代码">
           <el-color-picker v-model="form.colorCode" />
           <span class="color-text">{{ form.colorCode || '请选择颜色' }}</span>
         </el-form-item>
-        <!-- 甲型 / 图案：图片上传 -->
+        <!-- 图案：图片素材，必须上传 -->
         <el-form-item v-else label="素材图片">
           <el-upload :show-file-list="false" accept=".jpg,.jpeg,.png,.webp" :http-request="uploadImage">
             <el-image v-if="form.imageUrl" :src="form.imageUrl" fit="contain" class="upload-preview" />
@@ -112,8 +120,19 @@
 import { reactive, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '../../utils/request'
+import MaterialThumb from '../../components/MaterialThumb.vue'
+import { SHAPE_OPTIONS } from '../../engine/contours'
 
-const TYPE_LABEL = { SHAPE: '甲型', COLOR: '色卡', PATTERN: '图案' }
+// 类型 → 中文标签（与后端 Material.TYPE_* 常量保持一致）
+const TYPE_LABEL = {
+  SHAPE: '甲型',
+  COLOR: '色卡',
+  PATTERN_IMG: '图案',
+  PATTERN_STYLE: '图案款式',
+  DECOR: '钻饰',
+  STICKER: '贴纸',
+  OVERLAY: '甲油效果'
+}
 const typeLabel = (t) => TYPE_LABEL[t] || t
 
 // ---- 列表 ----
@@ -136,7 +155,7 @@ async function loadList() {
 // ---- 新增 / 编辑 ----
 const dialogVisible = ref(false)
 const saving = ref(false)
-const emptyForm = () => ({ id: null, type: 'SHAPE', name: '', imageUrl: '', colorCode: '', sort: 0, onSale: true })
+const emptyForm = () => ({ id: null, type: 'SHAPE', code: '', name: '', imageUrl: '', colorCode: '', sort: 0, onSale: true })
 const form = reactive(emptyForm())
 
 function openCreate() {
@@ -149,16 +168,26 @@ function openEdit(row) {
   dialogVisible.value = true
 }
 
+/** 选中甲型代码后，名称留空则自动填默认名（仍可手改） */
+function onShapeCodeChange(code) {
+  const hit = SHAPE_OPTIONS.find((s) => s.code === code)
+  if (hit && !form.name) form.name = hit.name
+}
+
 async function submit() {
   if (!form.name) {
     ElMessage.warning('请填写素材名称')
+    return
+  }
+  if (form.type === 'SHAPE' && !form.code) {
+    ElMessage.warning('请选择甲型代码')
     return
   }
   if (form.type === 'COLOR' && !form.colorCode) {
     ElMessage.warning('请选择色卡颜色')
     return
   }
-  if (form.type !== 'COLOR' && !form.imageUrl) {
+  if (form.type === 'PATTERN_IMG' && !form.imageUrl) {
     ElMessage.warning('请上传素材图片')
     return
   }
@@ -166,8 +195,10 @@ async function submit() {
   try {
     const body = {
       type: form.type,
+      // 只有甲型是代码注册素材；其余类型 code 留空
+      code: form.type === 'SHAPE' ? form.code : '',
       name: form.name,
-      imageUrl: form.type === 'COLOR' ? '' : form.imageUrl,
+      imageUrl: form.type === 'PATTERN_IMG' ? form.imageUrl : '',
       colorCode: form.type === 'COLOR' ? form.colorCode : '',
       sort: form.sort,
       status: form.onSale ? 1 : 0
@@ -188,7 +219,7 @@ async function submit() {
 // ---- 上下架 / 删除 ----
 async function toggleStatus(row, onSale) {
   const body = {
-    type: row.type, name: row.name, imageUrl: row.imageUrl,
+    type: row.type, code: row.code, name: row.name, imageUrl: row.imageUrl,
     colorCode: row.colorCode, sort: row.sort, status: onSale ? 1 : 0
   }
   await request.put(`/merchant/materials/${row.id}`, body)
@@ -220,9 +251,8 @@ onMounted(loadList)
 .page { min-height: 100vh; padding: 16px; background: #F5EFE6; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .toolbar { display: flex; gap: 10px; margin-bottom: 12px; }
-.thumb { width: 60px; height: 60px; }
-.color-block { width: 60px; height: 60px; border-radius: 6px; border: 1px solid #eee; }
 .color-text { margin-left: 10px; color: #4A443E; }
+.form-thumb { margin-left: 12px; }
 .upload-preview { width: 120px; height: 120px; border: 1px dashed #d9d9d9; border-radius: 6px; }
 .pagination { margin-top: 12px; justify-content: flex-end; }
 </style>

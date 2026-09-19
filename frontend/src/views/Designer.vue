@@ -796,6 +796,7 @@ function defaultFinger() {
     shapeId: null,
     length: 1,                        // 长度系数 0.6~1.6，1.0=标准（完整覆盖甲床+基础延伸），加长段顶端为 2.4× 甲床长
     colorId: null,
+    colorCode: '',                    // 自定义色（滑条/HEX 输入产生）；colorId 为空时以它为准，逐指独立
     overlays: [],                     // OVERLAY 层栈 [{ id, opacity }]，可多选叠加
     patternIds: [],
     gradient: { enabled: false, color2: '', position: 50 },
@@ -938,6 +939,7 @@ const lightBarStyle = computed(() => ({
 let barDragging = false
 function applySliderColor() {
   active.value.colorId = null
+  active.value.colorCode = sliderColor.value   // 自定义色逐指独立
   hexInput.value = sliderColor.value
 }
 function onBarDown(e, kind) {
@@ -1002,9 +1004,18 @@ const active = computed(() => fingers.value[activeFinger.value])
 
 function shapeById(id) { return shapes.value.find(m => m.id === id) || null }
 function colorCodeOf(f) {
+  if (!f) return '#F5F0E6'
   const c = colors.value.find(m => m.id === f.colorId)
-  return c ? c.colorCode : (hexInput.value || '#F5F0E6')
+  // 色卡命中用色卡色；否则用该指自己的自定义色。绝不能回退到全局输入框，否则改一指会串到其他指
+  return c ? c.colorCode : (f.colorCode || '#F5F0E6')
 }
+/** 把「当前手指」的颜色回填到 HEX 输入框与滑条（切换手指 / 撤销重做 / 套用模板后调用） */
+function syncColorInputs() {
+  const f = fingers.value[activeFinger.value]
+  hexInput.value = f ? colorCodeOf(f) : ''
+}
+// 切换手指时，颜色输入区跟随该指自己的颜色，避免显示上一指的值
+watch(activeFinger, syncColorInputs)
 function patternsOf(f) { return f.patternIds.map(id => patterns.value.find(m => m.id === id)).filter(Boolean) }
 const filteredPatterns = computed(() => patternCategory.value === 'ALL'
   ? patterns.value
@@ -1048,11 +1059,22 @@ const lengthLabel = computed(() => {
   const v = active.value?.length || 1
   return (LENGTH_LABELS.find(l => v < l[0]) || LENGTH_LABELS[3])[1]
 })
-function selectColor(id, code) { if (active.value.colorId !== id) { active.value.colorId = id; hexInput.value = code; pushHistory() } }
+function selectColor(id, code) {
+  if (active.value.colorId !== id || active.value.colorCode) {
+    active.value.colorId = id
+    active.value.colorCode = ''      // 回到色卡色，清掉该指的自定义色
+    hexInput.value = code
+    pushHistory()
+  }
+}
 function applyHex() {
   const v = hexInput.value.trim()
-  if (/^#[0-9a-fA-F]{6}$/.test(v)) { hexInput.value = v; active.value.colorId = null; pushHistory() }
-  else hexInput.value = colorCodeOf(active.value) || '#F5F0E6'
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+    active.value.colorId = null
+    active.value.colorCode = v.toUpperCase()   // 只写当前指，不影响其他手指
+    hexInput.value = v
+    pushHistory()
+  } else hexInput.value = colorCodeOf(active.value) || '#F5F0E6'
 }
 // 点击添加（非拖拽）时的默认落点：错开摆放，避免多个图案/钻饰堆在同一处
 const FREE_SLOTS = [
@@ -1106,6 +1128,7 @@ function swapGradient() {
   g.color2 = base
   const hit = colors.value.find(m => m.colorCode.toUpperCase() === oldColor2.toUpperCase())
   active.value.colorId = hit ? hit.id : null
+  active.value.colorCode = hit ? '' : oldColor2.toUpperCase()
   hexInput.value = oldColor2
   pushHistory()
 }
@@ -1193,6 +1216,7 @@ function syncAll() {
     f.length = src.length
     f.overlays = JSON.parse(JSON.stringify(src.overlays || []))
     f.colorId = src.colorId
+    f.colorCode = src.colorCode
     f.patternIds = [...src.patternIds]
     f.gradient = JSON.parse(JSON.stringify(src.gradient))
     f.catEye   = JSON.parse(JSON.stringify(src.catEye))
@@ -1218,8 +1242,7 @@ function pushHistory() {
 }
 function applySnapshot(s) {
   fingers.value = JSON.parse(JSON.stringify(s))
-  const c = colors.value.find(m => m.id === fingers.value[activeFinger.value]?.colorId)
-  hexInput.value = c ? c.colorCode : ''
+  syncColorInputs()
 }
 function undo() { if (histIdx.value > 0) { histIdx.value--; applySnapshot(history.value[histIdx.value]) } }
 function redo() { if (histIdx.value < history.value.length - 1) { histIdx.value++; applySnapshot(history.value[histIdx.value]) } }
@@ -1260,6 +1283,8 @@ function mergeFinger(target, fp) {
   target.shapeId = validId(shapes.value, fp.shapeId) ? fp.shapeId : target.shapeId
   target.length = Math.min(1.6, Math.max(0.6, Number(fp.length) || 1))
   if (validId(colors.value, fp.colorId)) target.colorId = fp.colorId
+  // 自定义色：老数据无此字段，缺省为空字符串（回落到默认底色）
+  if (typeof fp.colorCode === 'string') target.colorCode = fp.colorCode
   // OVERLAY 层栈：只保留素材库中仍存在的层
   if (Array.isArray(fp.overlays)) {
     target.overlays = fp.overlays
@@ -1289,8 +1314,8 @@ function applyParams(paramsStr) {
     } else {
       fingers.value.forEach(f => mergeFinger(f, p))
     }
-    const c = colors.value.find(m => m.id === fingers.value[activeFinger.value].colorId)
-    hexInput.value = c ? c.colorCode : ''
+    // 回填当前指自己的颜色（含自定义色），而不是只看色卡
+    syncColorInputs()
   } catch (e) { /* */ }
 }
 

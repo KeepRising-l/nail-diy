@@ -147,6 +147,7 @@ import { adjustColor, seededRandom, isDarkColor } from '../utils/color'
 import { genPattern } from '../engine/patternStyles'
 import { genOverlay } from '../engine/polishOverlays'
 import { decoGem, GEM_PATHS } from '../engine/decoGems'
+import { clampLength, contourHeight, shapePathOf } from '../engine/contours'
 
 const props = defineProps({
   shape: { type: Object, default: null },   // { name } 甲型素材
@@ -175,74 +176,11 @@ const uid = 'na' + Math.random().toString(36).slice(2, 9)
 const svgRef = ref(null)
 
 // ---------- 甲型轮廓 × 长度（两个独立设计维度） ----------
-// 画布约定：y=0 为甲根（指根侧），y 沿指甲长轴朝指尖增大；viewBox 高度随长度伸缩
-// 甲型 = 8 种纯轮廓（决定前端形状）；长度 = 独立系数 k∈[0.6,1.3]（决定甲片长短）
+// 甲型轮廓几何统一在 engine/contours.js：设计台与运营端素材预览共用同一份，形状不会走样
 const f1 = v => Number(v.toFixed(1))
-// 画布约定：y=0 为甲根（指根侧），y 沿指甲长轴朝指尖增大；viewBox 高度随长度伸缩
-// 甲型 = 8 种纯轮廓（决定前端形状）；长度 = 独立系数 k∈[0.6,2.8]（决定甲片长短）
-// 统一几何基准：最宽处 x∈[8,52]（44 单位，手模按此映射甲床宽度），甲根缘 x∈[9,51]（宽 42，
-// 与最宽处仅差 5%——穿戴甲必须完整覆盖天然甲床，根部不能明显收窄露甲）、根缘中心 y≈7
-// 轮廓带轻微侧边收窄与较大的尖端圆弧，保证在小尺寸（手模 ~15px 宽）下仍读得出甲型而非矩形
-const CONTOURS = {
-  // 圆形：前端呈自然圆弧，甲面饱满
-  round(k) {
-    const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 9 4 C 7.5 ${m} 9.5 ${f1(t - 14)} 16 ${f1(t - 6)} Q 30 ${f1(t + 7)} 44 ${f1(t - 6)} C 50.5 ${f1(t - 14)} 52.5 ${m} 51 4 C 41 7.5 19 7.5 9 4 Z`
-  },
-  // 方圆形：整体偏方，但边角圆润（squoval）
-  squoval(k) {
-    const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 9.5 4 C 8 ${m} 10 ${f1(t - 12)} 17 ${f1(t - 5)} Q 30 ${f1(t + 4)} 43 ${f1(t - 5)} C 50 ${f1(t - 12)} 52 ${m} 50.5 4 C 41 7.5 19 7.5 9.5 4 Z`
-  },
-  // 方形：前端平直，边角圆润收拢
-  square(k) {
-    const t = 76 * k + 4
-    return `M 9.5 4 L 9.5 ${f1(t - 7)} Q 9.5 ${f1(t)} 15.5 ${f1(t)} L 44.5 ${f1(t)} Q 50.5 ${f1(t)} 50.5 ${f1(t - 7)} L 50.5 4 C 41 7.5 19 7.5 9.5 4 Z`
-  },
-  // 椭圆形：整体修长，前端为柔和椭圆
-  oval(k) {
-    const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 10 4 C 8 ${m} 11.5 ${f1(t - 10)} 19 ${f1(t - 3)} Q 30 ${f1(t + 5)} 41 ${f1(t - 3)} C 48.5 ${f1(t - 10)} 52 ${m} 50 4 C 40.5 7.5 19.5 7.5 10 4 Z`
-  },
-  // 杏仁形：两侧逐渐收窄，前端圆润尖细
-  almond(k) {
-    const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 10.5 4 C 8.5 ${m} 15 ${f1(t - 12)} 25 ${f1(t - 4)} Q 30 ${f1(t)} 35 ${f1(t - 4)} C 45 ${f1(t - 12)} 51.5 ${m} 49.5 4 C 40 7.5 20 7.5 10.5 4 Z`
-  },
-  // 芭蕾形：两侧收窄，前端平直，类似芭蕾舞鞋（coffin）
-  ballerina(k) {
-    const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 9 4 C 8 ${m} 11 ${f1(t - 13)} 17 ${f1(t - 5.5)} L 21.5 ${f1(t - 1.5)} Q 23 ${f1(t)} 25 ${f1(t)} L 35 ${f1(t)} Q 37 ${f1(t)} 38.5 ${f1(t - 1.5)} L 43 ${f1(t - 5.5)} C 49 ${f1(t - 13)} 52 ${m} 51 4 C 41 7.5 19 7.5 9 4 Z`
-  },
-  // 尖形：两侧明显收窄，前端形成尖角
-  stiletto(k) {
-    const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 10.5 4 C 8.5 ${m} 16.5 ${f1(t - 14)} 27 ${f1(t - 2.5)} L 30 ${f1(t)} L 33 ${f1(t - 2.5)} C 43.5 ${f1(t - 14)} 51.5 ${m} 49.5 4 C 40 7.5 20 7.5 10.5 4 Z`
-  },
-  // 俄罗斯方：整体修长，两侧略微收窄，前端保持平直
-  russian(k) {
-    const t = 76 * k + 4, m = f1((4 + t) / 2)
-    return `M 10 4 C 9 ${m} 13 ${f1(t - 11)} 17.5 ${f1(t - 4.5)} Q 19 ${f1(t)} 22 ${f1(t)} L 38 ${f1(t)} Q 41 ${f1(t)} 42.5 ${f1(t - 4.5)} C 47 ${f1(t - 11)} 51 ${m} 50 4 C 40.5 7.5 19.5 7.5 10 4 Z`
-  }
-}
-const kLen = computed(() => Math.min(2.8, Math.max(0.6, Number(props.length) || 1)))
-const HEIGHT = computed(() => Math.round(76 * kLen.value + 8))
-const shapePath = computed(() => {
-  const gen = CONTOURS[props.shape?.code]
-  if (gen) return gen(kLen.value)
-  // 旧数据回退：按名称关键字匹配（顺序敏感：方圆→椭圆 先于 圆）
-  const name = props.shape?.name || ''
-  let key = 'oval'
-  if (name.includes('方圆')) key = 'squoval'
-  else if (name.includes('椭圆')) key = 'oval'
-  else if (name.includes('芭蕾')) key = 'ballerina'
-  else if (name.includes('俄罗斯')) key = 'russian'
-  else if (name.includes('杏仁')) key = 'almond'
-  else if (name.includes('方')) key = 'square'
-  else if (name.includes('尖')) key = 'stiletto'
-  else if (name.includes('圆')) key = 'round'
-  return CONTOURS[key](kLen.value)
-})
+const kLen = computed(() => clampLength(props.length))
+const HEIGHT = computed(() => contourHeight(kLen.value))
+const shapePath = computed(() => shapePathOf(props.shape, kLen.value))
 
 // ---------- 贴花位置 ----------
 const PATTERN_U = 28                              // 贴花渲染尺寸（素材自带留白，有效视觉≈甲宽 40%）
