@@ -10,6 +10,7 @@ import com.diy.nail.mapper.CartMapper;
 import com.diy.nail.mapper.DesignMapper;
 import com.diy.nail.vo.CartVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -22,6 +23,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CartService {
 
+    public static final int MAX_QUANTITY = 99;
+
     private final CartMapper cartMapper;
     private final DesignMapper designMapper;
 
@@ -33,7 +36,7 @@ public class CartService {
         List<CartVO> result = new ArrayList<>();
         for (Cart cart : carts) {
             Design design = designMapper.selectById(cart.getDesignId());
-            if (design == null) {
+            if (design == null || !userId.equals(design.getUserId())) {
                 continue;
             }
             CartVO vo = new CartVO();
@@ -54,31 +57,32 @@ public class CartService {
         if (design == null) {
             throw new BusinessException("设计不存在或已删除");
         }
-        int quantity = request.getQuantity() == null ? 1 : request.getQuantity();
-        if (quantity < 1) {
-            throw new BusinessException("数量必须大于 0");
+        if (!userId.equals(design.getUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "不能使用其他人的设计");
         }
-        Cart exist = cartMapper.selectOne(new LambdaQueryWrapper<Cart>()
-                .eq(Cart::getUserId, userId)
-                .eq(Cart::getDesignId, request.getDesignId()));
-        if (exist != null) {
-            exist.setQuantity(exist.getQuantity() + quantity);
-            cartMapper.updateById(exist);
-        } else {
-            Cart cart = new Cart();
-            cart.setUserId(userId);
-            cart.setDesignId(request.getDesignId());
-            cart.setQuantity(quantity);
+        int quantity = request.getQuantity() == null ? 1 : request.getQuantity();
+        validateQuantity(quantity);
+        if (cartMapper.incrementQuantity(userId, request.getDesignId(), quantity) == 1) {
+            return;
+        }
+        Cart cart = new Cart();
+        cart.setUserId(userId);
+        cart.setDesignId(request.getDesignId());
+        cart.setQuantity(quantity);
+        try {
             cartMapper.insert(cart);
+        } catch (DuplicateKeyException e) {
+            // 另一请求可能刚插入同一设计；再次用条件更新完成累加。
+            if (cartMapper.incrementQuantity(userId, request.getDesignId(), quantity) != 1) {
+                throw new BusinessException("数量不能大于 " + MAX_QUANTITY);
+            }
         }
     }
 
     /** 修改数量（条目必须属于本人） */
     public void updateQuantity(Long userId, Long id, Integer quantity) {
         Cart cart = getOwned(userId, id);
-        if (quantity == null || quantity < 1) {
-            throw new BusinessException("数量必须大于 0");
-        }
+        validateQuantity(quantity);
         cart.setQuantity(quantity);
         cartMapper.updateById(cart);
     }
@@ -101,5 +105,11 @@ public class CartService {
             throw new BusinessException(ResultCode.NOT_FOUND);
         }
         return cart;
+    }
+
+    static void validateQuantity(Integer quantity) {
+        if (quantity == null || quantity < 1 || quantity > MAX_QUANTITY) {
+            throw new BusinessException("数量必须在 1 到 " + MAX_QUANTITY + " 之间");
+        }
     }
 }

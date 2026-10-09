@@ -72,6 +72,7 @@ CREATE TABLE `material` (
     `deleted`     TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除',
     PRIMARY KEY (`id`),
     KEY `idx_type_status` (`type`, `status`),
+    KEY `idx_image_url` (`image_url`),
     KEY `idx_source_audit` (`source`, `audit_status`),
     KEY `idx_heat` (`heat`)
 ) ENGINE = InnoDB COMMENT ='设计素材表';
@@ -126,7 +127,8 @@ CREATE TABLE `cart` (
     `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_user_design` (`user_id`, `design_id`)
+    UNIQUE KEY `uk_user_design` (`user_id`, `design_id`),
+    CONSTRAINT `chk_cart_quantity` CHECK (`quantity` BETWEEN 1 AND 99)
 ) ENGINE = InnoDB COMMENT ='购物车表';
 
 -- -------------------------------------------------------------
@@ -197,7 +199,8 @@ CREATE TABLE `order_item` (
     `quantity`     INT           NOT NULL DEFAULT 1 COMMENT '数量',
     `create_time`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
-    KEY `idx_order` (`order_id`)
+    KEY `idx_order` (`order_id`),
+    CONSTRAINT `chk_order_item_quantity` CHECK (`quantity` BETWEEN 1 AND 99)
 ) ENGINE = InnoDB COMMENT ='订单明细表';
 
 -- -------------------------------------------------------------

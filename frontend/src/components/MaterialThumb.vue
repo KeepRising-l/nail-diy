@@ -7,7 +7,7 @@
     4) 其余代码渲染素材（参数化款式/矢量装饰/甲油效果）→ 「代码渲染」标签
   -->
   <div class="thumb" :style="{ width: size + 'px', height: size + 'px' }">
-    <el-image v-if="material.imageUrl" :src="material.imageUrl" fit="contain" class="thumb-img" />
+    <el-image v-if="displayUrl" :src="displayUrl" fit="contain" class="thumb-img" />
     <div v-else-if="material.type === 'COLOR'" class="color-block"
          :style="{ background: material.colorCode || '#FFFFFF' }"
          :title="material.colorCode || '未设置颜色'" />
@@ -21,8 +21,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { shapePathOf } from '../engine/contours'
+import request from '../utils/request'
 
 const props = defineProps({
   /** 素材记录（material 表一行） */
@@ -33,6 +34,41 @@ const props = defineProps({
 
 // 甲型统一按标准长度（系数 1）出图，保证 8 种甲型在列表里横向可比
 const shapePath = computed(() => shapePathOf(props.material, 1))
+const displayUrl = ref('')
+let objectUrl = ''
+let loadId = 0
+
+function clearObjectUrl() {
+  if (objectUrl) URL.revokeObjectURL(objectUrl)
+  objectUrl = ''
+}
+
+watch(() => props.material.imageUrl, async (url) => {
+  const currentLoad = ++loadId
+  clearObjectUrl()
+  if (!url) {
+    displayUrl.value = ''
+    return
+  }
+  if (!url.startsWith('/api/materials/')) {
+    displayUrl.value = url
+    return
+  }
+  displayUrl.value = ''
+  try {
+    const blob = await request.get(url.replace(/^\/api/, ''), { responseType: 'blob' })
+    if (currentLoad !== loadId) return
+    objectUrl = URL.createObjectURL(blob)
+    displayUrl.value = objectUrl
+  } catch (_) {
+    if (currentLoad === loadId) displayUrl.value = ''
+  }
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  loadId++
+  clearObjectUrl()
+})
 </script>
 
 <style scoped>

@@ -41,8 +41,9 @@
 # 1. 建库（含素材与模板种子，可重复执行）
 mysql -uroot -p < backend/src/main/resources/schema.sql
 
-# 2. 数据库密码：默认 1234，可用环境变量覆盖
+# 2. 设置本地配置（JWT_SECRET 至少 32 位且不可提交到仓库）
 export MYSQL_PASSWORD=你的密码   # Windows: set MYSQL_PASSWORD=你的密码
+export JWT_SECRET=你的随机长密钥 # Windows: set JWT_SECRET=你的随机长密钥
 
 # 3. 启动后端（8080）
 cd backend && mvn spring-boot:run

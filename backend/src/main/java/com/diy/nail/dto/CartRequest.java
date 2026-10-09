@@ -1,6 +1,8 @@
 package com.diy.nail.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.Data;
 
 /**
@@ -14,5 +16,7 @@ public class CartRequest {
     private Long designId;
 
     /** 数量（不传默认 1） */
+    @Min(value = 1, message = "数量不能小于 1")
+    @Max(value = 99, message = "数量不能大于 99")
     private Integer quantity;
 }

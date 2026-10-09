@@ -17,6 +17,6 @@ public class ShipRequest {
 
     /** 物流单号 */
     @NotBlank(message = "物流单号不能为空")
-    @Size(max = 100, message = "物流单号不能超过100字")
+    @Size(max = 50, message = "物流单号不能超过50字")
     private String expressNo;
 }

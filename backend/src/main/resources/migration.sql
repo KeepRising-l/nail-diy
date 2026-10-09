@@ -1,12 +1,13 @@
 -- =============================================================
 -- 素材模块重构迁移脚本（MySQL 8，适用于已有数据的旧库，不清库）
 -- 使用方法：mysql -uroot -p nail_diy < migration.sql
--- ⚠ 本脚本不幂等，同一个库只能执行一次：
+-- 本脚本不幂等，同一个库只能执行一次：
 --   重复执行会在第一步报 [ERR] 1060 - Duplicate column name 'code'。
---   执行前先检查是否已迁移：SHOW COLUMNS FROM material LIKE 'code';
---   有结果 = 已迁移，跳过本脚本即可（全新环境请直接用 schema.sql）。
+--   请在停服维护窗口备份数据库后执行；任一步骤失败时从备份恢复，不要在半迁移状态重跑。
+--   全新环境请直接使用 schema.sql。
 -- 变更：material 表新增 7 个字段；旧类型 PATTERN 迁移为 PATTERN_IMG；
---       甲型行按名称回写 code（绑定前端渲染器）；补充新类型 seed 数据
+--       甲型行按名称回写 code（绑定前端渲染器）；补充新类型 seed 数据；
+--       补齐图片路径索引与数量约束
 -- =============================================================
 USE nail_diy;
 
@@ -20,27 +21,22 @@ ALTER TABLE `material`
     ADD COLUMN `audit_status` VARCHAR(20)  NOT NULL DEFAULT 'APPROVED' COMMENT '审核状态：PENDING/APPROVED/REJECTED' AFTER `creator_id`,
     ADD COLUMN `heat`         INT          NOT NULL DEFAULT 0 COMMENT '热度（被设计引用次数）' AFTER `audit_status`,
     ADD KEY `idx_source_audit` (`source`, `audit_status`),
+    ADD KEY `idx_image_url` (`image_url`),
     ADD KEY `idx_heat` (`heat`);
 
 -- 2. 旧贴图类型迁移：PATTERN → PATTERN_IMG
 UPDATE `material` SET `type` = 'PATTERN_IMG' WHERE `type` = 'PATTERN';
 
--- 3. 已有甲型按名称回写 code（与前端 NailArt PATHS 的 key 一致；匹配顺序敏感，长前缀优先）
-UPDATE `material` SET `code` = 'xsquare'   WHERE `type` = 'SHAPE' AND `name` LIKE '%超长方%';
-UPDATE `material` SET `code` = 'xstiletto' WHERE `type` = 'SHAPE' AND `name` LIKE '%超长尖%';
+-- 3. 已有甲型按名称回写 code（仅使用前端支持的 8 个轮廓 code；匹配顺序敏感）
 UPDATE `material` SET `code` = 'russian'   WHERE `type` = 'SHAPE' AND `name` LIKE '%俄罗斯%';
-UPDATE `material` SET `code` = 'moval'     WHERE `type` = 'SHAPE' AND `name` LIKE '%中长%';
-UPDATE `material` SET `code` = 'ballerina' WHERE `type` = 'SHAPE' AND (`name` LIKE '%芭蕾%' OR `name` LIKE '%梯形%');
-UPDATE `material` SET `code` = 'edge'      WHERE `type` = 'SHAPE' AND `name` LIKE '%折角%';
-UPDATE `material` SET `code` = 'flare'     WHERE `type` = 'SHAPE' AND `name` LIKE '%喇叭%';
-UPDATE `material` SET `code` = 'lipstick'  WHERE `type` = 'SHAPE' AND `name` LIKE '%唇形%';
-UPDATE `material` SET `code` = 'shortsq'   WHERE `type` = 'SHAPE' AND `name` LIKE '%短方%';
-UPDATE `material` SET `code` = 'round'     WHERE `type` = 'SHAPE' AND `name` LIKE '%圆形%';
-UPDATE `material` SET `code` = 'short'     WHERE `type` = 'SHAPE' AND `name` LIKE '%短圆%';
-UPDATE `material` SET `code` = 'square'    WHERE `type` = 'SHAPE' AND `code` = '' AND (`name` LIKE '%方圆%' OR `name` LIKE '%方形%');
+UPDATE `material` SET `code` = 'squoval'   WHERE `type` = 'SHAPE' AND `name` LIKE '%方圆%';
 UPDATE `material` SET `code` = 'oval'      WHERE `type` = 'SHAPE' AND `code` = '' AND `name` LIKE '%椭圆%';
+UPDATE `material` SET `code` = 'ballerina' WHERE `type` = 'SHAPE' AND (`name` LIKE '%芭蕾%' OR `name` LIKE '%梯形%');
 UPDATE `material` SET `code` = 'almond'    WHERE `type` = 'SHAPE' AND `code` = '' AND `name` LIKE '%杏仁%';
 UPDATE `material` SET `code` = 'stiletto'  WHERE `type` = 'SHAPE' AND `code` = '' AND `name` LIKE '%尖%';
+UPDATE `material` SET `code` = 'square'    WHERE `type` = 'SHAPE' AND `code` = '' AND (`name` LIKE '%方形%' OR `name` LIKE '%短方%' OR `name` LIKE '%超长方%' OR `name` LIKE '%折角%' OR `name` LIKE '%喇叭%');
+UPDATE `material` SET `code` = 'almond'    WHERE `type` = 'SHAPE' AND `code` = '' AND `name` LIKE '%唇形%';
+UPDATE `material` SET `code` = 'round'     WHERE `type` = 'SHAPE' AND `code` = '' AND (`name` LIKE '%圆形%' OR `name` LIKE '%短圆%');
 
 -- 4. 补充参数化款式与矢量装饰件 seed（code 唯一，重复执行请先清理同 code 行）
 INSERT INTO `material` (`type`, `code`, `name`, `category`, `tags`, `attrs`, `sort`)
@@ -73,3 +69,67 @@ SELECT 'DECOR', t.code, t.name, t.category, t.attrs, t.sort FROM (
     UNION ALL SELECT 'pearl',    '珍珠',     'PEARL', JSON_OBJECT('material','珍珠'), 10
 ) t
 WHERE NOT EXISTS (SELECT 1 FROM `material` m WHERE m.`type` = 'DECOR' AND m.`code` = t.code);
+
+-- 5. 合并旧库可能存在的重复购物车行，再补齐原子加购依赖的唯一键
+-- 脚本必须在停服维护窗口执行；不要在 LOCK TABLES 中执行后续别名 DML/DDL。
+CREATE TEMPORARY TABLE `cart_dedup` AS
+SELECT MIN(`id`) AS `id`, `user_id`, `design_id`,
+       LEAST(GREATEST(SUM(`quantity`), 1), 99) AS `quantity`
+FROM `cart`
+GROUP BY `user_id`, `design_id`;
+
+UPDATE `cart` c
+JOIN `cart_dedup` d ON d.`id` = c.`id`
+SET c.`quantity` = d.`quantity`;
+
+DELETE c FROM `cart` c
+JOIN `cart_dedup` d ON d.`user_id` = c.`user_id` AND d.`design_id` = c.`design_id`
+WHERE c.`id` <> d.`id`;
+
+DROP TEMPORARY TABLE `cart_dedup`;
+
+SET @cart_unique_signature = (
+    SELECT CONCAT(MIN(`non_unique`), ':', GROUP_CONCAT(`column_name` ORDER BY `seq_in_index`))
+    FROM `information_schema`.`statistics`
+    WHERE `table_schema` = DATABASE()
+      AND `table_name` = 'cart'
+      AND `index_name` = 'uk_user_design'
+);
+SET @drop_invalid_cart_unique = IF(
+    @cart_unique_signature IS NOT NULL AND @cart_unique_signature <> '0:user_id,design_id',
+    'ALTER TABLE `cart` DROP INDEX `uk_user_design`',
+    'SELECT 1'
+);
+PREPARE drop_invalid_cart_unique_stmt FROM @drop_invalid_cart_unique;
+EXECUTE drop_invalid_cart_unique_stmt;
+DEALLOCATE PREPARE drop_invalid_cart_unique_stmt;
+
+SET @has_cart_unique = (
+    SELECT COUNT(*)
+    FROM (
+        SELECT `index_name`
+        FROM `information_schema`.`statistics`
+        WHERE `table_schema` = DATABASE()
+          AND `table_name` = 'cart'
+          AND `index_name` = 'uk_user_design'
+        GROUP BY `index_name`
+        HAVING MIN(`non_unique`) = 0
+           AND GROUP_CONCAT(`column_name` ORDER BY `seq_in_index`) = 'user_id,design_id'
+    ) valid_cart_unique
+);
+SET @add_cart_unique = IF(
+    @has_cart_unique = 0,
+    'ALTER TABLE `cart` ADD UNIQUE KEY `uk_user_design` (`user_id`, `design_id`)',
+    'SELECT 1'
+);
+PREPARE add_cart_unique_stmt FROM @add_cart_unique;
+EXECUTE add_cart_unique_stmt;
+DEALLOCATE PREPARE add_cart_unique_stmt;
+
+-- 6. 统一存量数量到业务范围后增加数据库兜底约束
+UPDATE `cart` SET `quantity` = LEAST(GREATEST(`quantity`, 1), 99);
+UPDATE `order_item` SET `quantity` = LEAST(GREATEST(`quantity`, 1), 99);
+ALTER TABLE `cart`
+    ADD CONSTRAINT `chk_cart_quantity` CHECK (`quantity` BETWEEN 1 AND 99);
+ALTER TABLE `order_item`
+    ADD CONSTRAINT `chk_order_item_quantity` CHECK (`quantity` BETWEEN 1 AND 99);

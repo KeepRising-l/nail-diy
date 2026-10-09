@@ -13,8 +13,8 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/nail_diy?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: root
-    # 本地部署请修改为自己的 MySQL 密码（或通过环境变量注入）
-    password: ${MYSQL_PASSWORD:1234}
+    # 必须通过环境变量注入，避免弱默认密码进入运行环境
+    password: ${MYSQL_PASSWORD}
   servlet:
     multipart:
       max-file-size: 5MB
@@ -26,7 +26,6 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       logic-delete-field: deleted
@@ -38,17 +37,19 @@ nail:
   upload:
     # 素材/封面/晒图等文件保存目录（相对运行目录，也可写绝对路径）
     dir: uploads/
+    # 待审核 UGC 保存目录，不映射为静态资源
+    private-dir: private-uploads/
   freight:
     # 邮寄固定运费（元）
     amount: 8
     # 满额包邮门槛（商品合计 ≥ 该值免运费）
     free-over: 99
   jwt:
-    # JWT 签名密钥（HS256，生产环境请更换并妥善保管）
-    secret: nail-diy-shop-jwt-secret-key-2026
+    # JWT 签名密钥（HS256），必须通过环境变量注入且不少于 32 位
+    secret: ${JWT_SECRET}
     # token 有效期（毫秒），默认 7 天
     expire: 604800000
 
 logging:
   level:
-    com.diy.nail: debug
+    com.diy.nail: ${APP_LOG_LEVEL:info}

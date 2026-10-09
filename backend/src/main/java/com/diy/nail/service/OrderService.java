@@ -35,6 +35,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 订单业务：整购物车结算下单、模拟支付、取消、我的订单查询
@@ -42,6 +43,8 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class OrderService {
+
+    private static final BigDecimal MAX_ORDER_AMOUNT = new BigDecimal("99999999.99");
 
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
@@ -87,7 +90,8 @@ public class OrderService {
     @Transactional(rollbackFor = Exception.class)
     public Long create(Long userId, OrderCreateRequest request) {
         List<Cart> carts = cartMapper.selectList(new LambdaQueryWrapper<Cart>()
-                .eq(Cart::getUserId, userId));
+                .eq(Cart::getUserId, userId)
+                .last("FOR UPDATE"));
         if (carts.isEmpty()) {
             throw new BusinessException("购物车为空，请先将设计加入购物车");
         }
@@ -106,6 +110,13 @@ public class OrderService {
             if (design == null) {
                 throw new BusinessException("购物车中存在已删除的设计，请刷新后重试");
             }
+            if (!userId.equals(design.getUserId())) {
+                throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "购物车中存在不属于你的设计");
+            }
+            CartService.validateQuantity(cart.getQuantity());
+            if (design.getPrice() == null || design.getPrice().signum() <= 0) {
+                throw new BusinessException("设计价格异常，请联系客服处理");
+            }
             OrderItem item = new OrderItem();
             item.setDesignId(design.getId());
             item.setDesignName(design.getName());
@@ -115,6 +126,9 @@ public class OrderService {
             item.setQuantity(cart.getQuantity());
             items.add(item);
             goodsAmount = goodsAmount.add(design.getPrice().multiply(BigDecimal.valueOf(cart.getQuantity())));
+            if (goodsAmount.compareTo(MAX_ORDER_AMOUNT) > 0) {
+                throw new BusinessException("订单金额超出允许范围");
+            }
         }
 
         if (Order.DELIVERY_SELF_PICKUP.equals(request.getDeliveryType())) {
@@ -127,7 +141,7 @@ public class OrderService {
             }
             order.setStoreId(store.getId());
             order.setFreight(BigDecimal.ZERO); // 自提无运费
-        } else {
+        } else if (Order.DELIVERY_EXPRESS.equals(request.getDeliveryType())) {
             if (request.getAddressId() == null) {
                 throw new BusinessException("请选择收货地址");
             }
@@ -140,6 +154,8 @@ public class OrderService {
             order.setReceiverAddr(address.getProvince() + address.getCity() + address.getDistrict() + address.getDetail());
             // 运费规则：满额包邮，否则固定运费
             order.setFreight(calcFreight(goodsAmount, freightFreeOver, freightAmount));
+        } else {
+            throw new BusinessException("履约方式不合法");
         }
 
         order.setGoodsAmount(goodsAmount);
@@ -152,24 +168,25 @@ public class OrderService {
             orderItemMapper.insert(item);
         }
         writeLog(order.getId(), "", Order.STATUS_PENDING_PAY, "顾客", "提交订单");
-        // 已结算条目移出购物车
-        cartMapper.delete(new LambdaQueryWrapper<Cart>().eq(Cart::getUserId, userId));
+        // 只移除本次结算快照；保留结算期间可能新增的购物车条目。
+        cartMapper.deleteCheckedOut(userId, carts.stream().map(Cart::getId).toList());
         return order.getId();
     }
 
     /** 模拟支付：待支付 → 待接单 */
+    @Transactional(rollbackFor = Exception.class)
     public void pay(Long userId, Long id) {
         Order order = getOwned(userId, id);
         if (!Order.STATUS_PENDING_PAY.equals(order.getStatus())) {
             throw new BusinessException("该订单无需支付");
         }
-        order.setStatus(Order.STATUS_PAID);
-        order.setPayTime(LocalDateTime.now());
-        orderMapper.updateById(order);
+        transition(order, Order.STATUS_PAID,
+                changes -> changes.setPayTime(LocalDateTime.now()));
         writeLog(order.getId(), Order.STATUS_PENDING_PAY, Order.STATUS_PAID, "顾客", "模拟支付成功");
     }
 
     /** 取消订单：仅待支付/待接单可取消 */
+    @Transactional(rollbackFor = Exception.class)
     public void cancel(Long userId, Long id) {
         Order order = getOwned(userId, id);
         if (!Order.STATUS_PENDING_PAY.equals(order.getStatus())
@@ -177,8 +194,7 @@ public class OrderService {
             throw new BusinessException("当前订单状态不可取消");
         }
         String from = order.getStatus();
-        order.setStatus(Order.STATUS_CANCELLED);
-        orderMapper.updateById(order);
+        transition(order, Order.STATUS_CANCELLED, update -> {});
         writeLog(order.getId(), from, Order.STATUS_CANCELLED, "顾客", "取消订单");
     }
 
@@ -197,76 +213,83 @@ public class OrderService {
     }
 
     /** 商家接单：待接单 → 制作中 */
+    @Transactional(rollbackFor = Exception.class)
     public void accept(Long id) {
         Order order = getOrThrow(id);
         String from = order.getStatus();
-        OrderStateMachine.assertTransition(from, Order.STATUS_PRODUCING);
-        order.setStatus(Order.STATUS_PRODUCING);
-        orderMapper.updateById(order);
+        transition(order, Order.STATUS_PRODUCING, update -> {});
         writeLog(order.getId(), from, Order.STATUS_PRODUCING, "商家", "接单");
     }
 
     /** 制作完成：自提 → 待自提（生成 6 位自提码）；邮寄 → 待发货 */
+    @Transactional(rollbackFor = Exception.class)
     public void produce(Long id) {
         Order order = getOrThrow(id);
         String from = order.getStatus();
-        String to = Order.DELIVERY_SELF_PICKUP.equals(order.getDeliveryType())
-                ? Order.STATUS_WAIT_PICKUP : Order.STATUS_WAIT_SHIP;
-        OrderStateMachine.assertTransition(from, to);
-        if (Order.STATUS_WAIT_PICKUP.equals(to)) {
-            order.setPickupCode(generatePickupCode());
+        String to;
+        if (Order.DELIVERY_SELF_PICKUP.equals(order.getDeliveryType())) {
+            to = Order.STATUS_WAIT_PICKUP;
+        } else if (Order.DELIVERY_EXPRESS.equals(order.getDeliveryType())) {
+            to = Order.STATUS_WAIT_SHIP;
+        } else {
+            throw new BusinessException("订单履约方式异常");
         }
-        order.setStatus(to);
-        orderMapper.updateById(order);
+        String pickupCode = null;
+        if (Order.STATUS_WAIT_PICKUP.equals(to)) {
+            pickupCode = generatePickupCode();
+        }
+        String generatedPickupCode = pickupCode;
+        transition(order, to, changes -> {
+            if (generatedPickupCode != null) {
+                changes.setPickupCode(generatedPickupCode);
+            }
+        });
         writeLog(order.getId(), from, to, "商家",
-                Order.STATUS_WAIT_PICKUP.equals(to) ? "制作完成，自提码 " + order.getPickupCode() : "制作完成，待发货");
+                Order.STATUS_WAIT_PICKUP.equals(to) ? "制作完成，自提码 " + generatedPickupCode : "制作完成，待发货");
     }
 
     /** 自提核销：自提码正确 → 已核销（终态） */
+    @Transactional(rollbackFor = Exception.class)
     public void verify(Long id, String pickupCode) {
         Order order = getOrThrow(id);
         String from = order.getStatus();
-        OrderStateMachine.assertTransition(from, Order.STATUS_VERIFIED);
         if (!pickupCode.equals(order.getPickupCode())) {
             throw new BusinessException("自提码不正确");
         }
-        order.setStatus(Order.STATUS_VERIFIED);
-        order.setFinishTime(LocalDateTime.now());
-        orderMapper.updateById(order);
+        transition(order, Order.STATUS_VERIFIED,
+                changes -> changes.setFinishTime(LocalDateTime.now()));
         writeLog(order.getId(), from, Order.STATUS_VERIFIED, "商家", "自提核销");
     }
 
     /** 邮寄发货：待发货 → 已发货，记录物流信息 */
+    @Transactional(rollbackFor = Exception.class)
     public void ship(Long id, ShipRequest request) {
         Order order = getOrThrow(id);
         String from = order.getStatus();
-        OrderStateMachine.assertTransition(from, Order.STATUS_SHIPPED);
-        order.setStatus(Order.STATUS_SHIPPED);
-        order.setExpressCompany(request.getExpressCompany());
-        order.setExpressNo(request.getExpressNo());
-        orderMapper.updateById(order);
+        transition(order, Order.STATUS_SHIPPED, changes -> {
+            changes.setExpressCompany(request.getExpressCompany());
+            changes.setExpressNo(request.getExpressNo());
+        });
         writeLog(order.getId(), from, Order.STATUS_SHIPPED, "商家",
                 "已发货：" + request.getExpressCompany() + " " + request.getExpressNo());
     }
 
     /** 商家取消订单（仅待支付/待接单阶段，对齐 REQ-FUL-7） */
+    @Transactional(rollbackFor = Exception.class)
     public void merchantCancel(Long id) {
         Order order = getOrThrow(id);
         String from = order.getStatus();
-        OrderStateMachine.assertTransition(from, Order.STATUS_CANCELLED);
-        order.setStatus(Order.STATUS_CANCELLED);
-        orderMapper.updateById(order);
+        transition(order, Order.STATUS_CANCELLED, update -> {});
         writeLog(order.getId(), from, Order.STATUS_CANCELLED, "商家", "商家取消订单");
     }
 
     /** 顾客确认收货：已发货 → 已签收（终态） */
+    @Transactional(rollbackFor = Exception.class)
     public void receive(Long userId, Long id) {
         Order order = getOwned(userId, id);
         String from = order.getStatus();
-        OrderStateMachine.assertTransition(from, Order.STATUS_RECEIVED);
-        order.setStatus(Order.STATUS_RECEIVED);
-        order.setFinishTime(LocalDateTime.now());
-        orderMapper.updateById(order);
+        transition(order, Order.STATUS_RECEIVED,
+                changes -> changes.setFinishTime(LocalDateTime.now()));
         writeLog(order.getId(), from, Order.STATUS_RECEIVED, "顾客", "确认收货");
     }
 
@@ -325,6 +348,20 @@ public class OrderService {
             throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "不能操作其他人的订单");
         }
         return order;
+    }
+
+    /** 状态迁移使用旧状态作为更新条件，避免并发请求互相覆盖。 */
+    private void transition(Order order, String to,
+                            Consumer<Order> customizer) {
+        String from = order.getStatus();
+        OrderStateMachine.assertTransition(from, to);
+        Order changes = new Order();
+        customizer.accept(changes);
+        if (orderMapper.transitionStatus(order.getId(), from, to,
+                changes.getPayTime(), changes.getFinishTime(), changes.getPickupCode(),
+                changes.getExpressCompany(), changes.getExpressNo()) != 1) {
+            throw new BusinessException("订单状态已变化，请刷新后重试");
+        }
     }
 
     /** 记录一条状态变更日志 */

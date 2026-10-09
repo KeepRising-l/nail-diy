@@ -40,6 +40,7 @@ public class MaterialService {
                 .orderByAsc(Material::getSort)
                 .orderByDesc(Material::getId);
         Page<Material> result = materialMapper.selectPage(new Page<>(page, size), wrapper);
+        result.getRecords().forEach(this::maskPrivateImageUrl);
         return PageResult.of(result.getTotal(), result.getRecords());
     }
 
@@ -58,9 +59,15 @@ public class MaterialService {
     /** 编辑素材（含上下架切换） */
     public void update(Long id, MaterialRequest request) {
         Material material = getById(id);
+        String storedUgcImage = Material.SOURCE_UGC.equals(material.getSource())
+                ? material.getImageUrl() : null;
         validateByType(request);
         checkCodeUnique(id, request.getType(), request.getCode());
         applyRequest(material, request);
+        if (storedUgcImage != null
+                && ("/api/materials/" + id + "/image").equals(request.getImageUrl())) {
+            material.setImageUrl(storedUgcImage);
+        }
         materialMapper.updateById(material);
     }
 
@@ -97,18 +104,25 @@ public class MaterialService {
         if (!Material.AUDIT_PENDING.equals(material.getAuditStatus())) {
             throw new BusinessException("该素材不在待审核状态");
         }
-        material.setAuditStatus(approved ? Material.AUDIT_APPROVED : Material.AUDIT_REJECTED);
-        materialMapper.updateById(material);
+        String auditStatus = approved ? Material.AUDIT_APPROVED : Material.AUDIT_REJECTED;
+        int updated = materialMapper.auditPending(id, auditStatus, approved ? 1 : 0);
+        if (updated != 1) {
+            throw new BusinessException("该素材审核状态已变化，请刷新后重试");
+        }
     }
 
     /** 顾客端：UGC 贴纸上传（透明底 PNG，进入待审核，审核通过后全员可见） */
     public Material createSticker(Long userId, String name, String imageUrl) {
-        if (StrUtil.isBlank(imageUrl)) {
+        if (StrUtil.isBlank(imageUrl) || !imageUrl.startsWith(FileService.PRIVATE_STICKER_PREFIX)) {
             throw new BusinessException("贴纸图片不能为空");
+        }
+        String stickerName = StrUtil.isBlank(name) ? "我的贴纸" : name.trim();
+        if (stickerName.length() > 50) {
+            throw new BusinessException("贴纸名称不能超过50字");
         }
         Material material = new Material();
         material.setType(Material.TYPE_STICKER);
-        material.setName(StrUtil.isBlank(name) ? "我的贴纸" : name.trim());
+        material.setName(stickerName);
         material.setImageUrl(imageUrl);
         material.setSource(Material.SOURCE_UGC);
         material.setCategory("UGC");
@@ -116,8 +130,9 @@ public class MaterialService {
         material.setAuditStatus(Material.AUDIT_PENDING);
         material.setHeat(0);
         material.setSort(0);
-        material.setStatus(1);
+        material.setStatus(0);
         materialMapper.insert(material);
+        maskPrivateImageUrl(material);
         return material;
     }
 
@@ -131,9 +146,9 @@ public class MaterialService {
                 .eq(StrUtil.isNotBlank(category), Material::getCategory, category)
                 .like(StrUtil.isNotBlank(tag), Material::getTags, tag)
                 .like(StrUtil.isNotBlank(keyword), Material::getName, keyword)
-                .eq(Material::getStatus, 1)
                 .and(w -> {
-                    w.eq(Material::getAuditStatus, Material.AUDIT_APPROVED);
+                    w.and(approved -> approved.eq(Material::getStatus, 1)
+                            .eq(Material::getAuditStatus, Material.AUDIT_APPROVED));
                     if (viewerId != null) {
                         w.or(ow -> ow.eq(Material::getSource, Material.SOURCE_UGC)
                                 .eq(Material::getCreatorId, viewerId)
@@ -142,18 +157,42 @@ public class MaterialService {
                 })
                 .orderByAsc(Material::getSort)
                 .orderByAsc(Material::getId);
-        return materialMapper.selectList(wrapper);
+        List<Material> materials = materialMapper.selectList(wrapper);
+        materials.forEach(this::maskPrivateImageUrl);
+        return materials;
+    }
+
+    /** 私有贴纸审核通过后公开；待审核时仅上传者和运营角色可读取。 */
+    public String imagePath(Long id, Long viewerId, boolean operator) {
+        Material material = getById(id);
+        boolean supportedPath = StrUtil.isNotBlank(material.getImageUrl())
+                && (material.getImageUrl().startsWith(FileService.PRIVATE_STICKER_PREFIX)
+                || material.getImageUrl().startsWith("/uploads/"));
+        if (!supportedPath || !Material.SOURCE_UGC.equals(material.getSource())) {
+            throw new BusinessException(ResultCode.NOT_FOUND);
+        }
+        boolean publicImage = Integer.valueOf(1).equals(material.getStatus())
+                && Material.AUDIT_APPROVED.equals(material.getAuditStatus());
+        boolean pendingOwner = Material.AUDIT_PENDING.equals(material.getAuditStatus())
+                && viewerId != null && viewerId.equals(material.getCreatorId());
+        if (!publicImage && !pendingOwner && !operator) {
+            throw new BusinessException(ResultCode.NOT_FOUND);
+        }
+        return material.getImageUrl();
     }
 
     /** 素材热度排行（统计看板用，可按类型过滤） */
     public List<Material> hotRank(String type, int limit) {
         int size = Math.max(1, Math.min(limit, 50));
-        return materialMapper.selectList(new LambdaQueryWrapper<Material>()
+        List<Material> materials = materialMapper.selectList(new LambdaQueryWrapper<Material>()
                 .eq(StrUtil.isNotBlank(type), Material::getType, type)
                 .eq(Material::getStatus, 1)
+                .eq(Material::getAuditStatus, Material.AUDIT_APPROVED)
                 .orderByDesc(Material::getHeat)
                 .orderByDesc(Material::getId)
                 .last("LIMIT " + size));
+        materials.forEach(this::maskPrivateImageUrl);
+        return materials;
     }
 
     /** 热度 +1（设计保存/下单时按引用素材调用） */
@@ -241,5 +280,16 @@ public class MaterialService {
             throw new BusinessException(ResultCode.NOT_FOUND);
         }
         return material;
+    }
+
+    private void maskPrivateImageUrl(Material material) {
+        boolean privatePath = material.getImageUrl() != null
+                && material.getImageUrl().startsWith(FileService.PRIVATE_STICKER_PREFIX);
+        boolean hiddenLegacyUgc = Material.SOURCE_UGC.equals(material.getSource())
+                && (!Integer.valueOf(1).equals(material.getStatus())
+                || !Material.AUDIT_APPROVED.equals(material.getAuditStatus()));
+        if (privatePath || hiddenLegacyUgc) {
+            material.setImageUrl("/api/materials/" + material.getId() + "/image");
+        }
     }
 }

@@ -552,7 +552,7 @@
                        @keydown.space.prevent="onPatternCardActivate(m)"
                        @click="onPatternCardActivate(m)">
                     <div class="pattern-img">
-                      <img v-if="m.imageUrl" :src="m.imageUrl" :alt="m.name" />
+                      <MaterialThumb v-if="m.imageUrl" :material="m" :size="56" />
                       <span v-else class="pi-ph">{{ m.name.slice(0,2) }}</span>
                       <span v-if="m.auditStatus === 'PENDING'" class="pending-badge">审核中</span>
                     </div>
@@ -728,6 +728,7 @@ import html2canvas from 'html2canvas'
 import request from '../utils/request'
 import NailArt from '../components/NailArt.vue'
 import HandModel from '../components/HandModel.vue'
+import MaterialThumb from '../components/MaterialThumb.vue'
 import { hexToHsl, hslToHex } from '../utils/color'
 import { decoPreview } from '../engine/decoGems'
 

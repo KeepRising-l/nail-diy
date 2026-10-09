@@ -118,7 +118,7 @@
         <!-- 图案：图片素材，必须上传 -->
         <el-form-item v-else label="素材图片">
           <el-upload :show-file-list="false" accept=".jpg,.jpeg,.png,.webp" :http-request="uploadImage">
-            <el-image v-if="form.imageUrl" :src="form.imageUrl" fit="contain" class="upload-preview" />
+            <MaterialThumb v-if="form.imageUrl" :material="form" :size="120" class="upload-preview" />
             <el-button v-else type="primary" plain>选择图片上传（≤5MB）</el-button>
           </el-upload>
         </el-form-item>
@@ -216,11 +216,13 @@ async function submit() {
   try {
     const body = {
       type: form.type,
-      // 只有甲型是代码注册素材；其余类型 code 留空
-      code: form.type === 'SHAPE' ? form.code : '',
+      code: ['SHAPE', 'PATTERN_STYLE', 'DECOR'].includes(form.type) ? form.code : '',
       name: form.name,
-      imageUrl: form.type === 'PATTERN_IMG' ? form.imageUrl : '',
+      imageUrl: ['PATTERN_IMG', 'STICKER', 'DECOR'].includes(form.type) ? form.imageUrl : '',
       colorCode: form.type === 'COLOR' ? form.colorCode : '',
+      category: form.category || '',
+      tags: form.tags || '',
+      attrs: form.attrs || null,
       sort: form.sort,
       status: form.onSale ? 1 : 0
     }
@@ -248,11 +250,10 @@ async function auditMaterial(row, approved) {
 
 // ---- 上下架 / 删除 ----
 async function toggleStatus(row, onSale) {
-  const body = {
-    type: row.type, code: row.code, name: row.name, imageUrl: row.imageUrl,
-    colorCode: row.colorCode, sort: row.sort, status: onSale ? 1 : 0
-  }
-  await request.put(`/merchant/materials/${row.id}`, body)
+  await request.post('/merchant/materials/batch-status', {
+    ids: [row.id],
+    status: onSale ? 1 : 0
+  })
   ElMessage.success(onSale ? '已上架' : '已下架')
   loadList()
 }
