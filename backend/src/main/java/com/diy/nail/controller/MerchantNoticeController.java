@@ -38,9 +38,8 @@ public class MerchantNoticeController {
 
     /** 新增公告 */
     @PostMapping
-    public Result<Void> create(@Valid @RequestBody NoticeRequest request) {
-        noticeService.create(request);
-        return Result.ok();
+    public Result<Long> create(@Valid @RequestBody NoticeRequest request) {
+        return Result.ok(noticeService.create(request));
     }
 
     /** 编辑公告 */

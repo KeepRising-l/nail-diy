@@ -1403,7 +1403,10 @@ function addSavedToCart(goCheckout) {
 
 async function save() {
   if (!designName.value.trim()) return ElMessage.warning('请填写设计名称')
-  if (!fingers.value.some(f => f.shapeId && f.colorId)) return ElMessage.warning('请为手指选择甲型和色卡')
+  // 颜色可能是色卡（colorId）或自定义色值（colorCode，滑条/HEX 输入），二者有其一即可
+  if (!fingers.value.some(f => f.shapeId && (f.colorId || f.colorCode))) {
+    return ElMessage.warning('请为手指选择甲型和颜色')
+  }
   saving.value = true
   try {
     const body = {

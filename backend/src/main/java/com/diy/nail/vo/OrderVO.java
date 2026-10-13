@@ -28,4 +28,11 @@ public class OrderVO {
 
     /** 该订单的评价（未评价为 null，列表/详情直接可判断已评价） */
     private ReviewVO review;
+
+    /**
+     * 该订单的售后状态：null 表示未申请过售后；
+     * 有值时取 AfterSale 的 PENDING / COMPLETED / REJECTED。
+     * 前端据此决定是否显示「申请售后」按钮与售后状态标签。
+     */
+    private String afterSaleStatus;
 }

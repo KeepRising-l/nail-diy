@@ -42,9 +42,8 @@ public class CartController {
 
     /** 加入购物车（已存在则数量累加） */
     @PostMapping
-    public Result<Void> add(Authentication authentication, @Valid @RequestBody CartRequest request) {
-        cartService.add(currentUserId(authentication), request);
-        return Result.ok();
+    public Result<Long> add(Authentication authentication, @Valid @RequestBody CartRequest request) {
+        return Result.ok(cartService.add(currentUserId(authentication), request));
     }
 
     /** 修改数量 */

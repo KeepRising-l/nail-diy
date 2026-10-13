@@ -34,7 +34,7 @@
           </template>
         </el-table-column>
         <el-table-column label="注册时间" width="170">
-          <template #default="{ row }">{{ (row.createTime || '').replace('T', ' ') }}</template>
+          <template #default="{ row }">{{ row.createTime }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">

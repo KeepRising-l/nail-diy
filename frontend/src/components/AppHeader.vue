@@ -39,6 +39,31 @@
             注册
           </el-button>
         </template>
+        <el-popover v-if="auth.token" placement="bottom-end" :width="330" trigger="click"
+                    @show="onOpenNotifications">
+          <template #reference>
+            <button class="bell-btn" aria-label="消息通知">
+              <el-icon :size="20"><Bell /></el-icon>
+              <el-badge v-if="unreadCount > 0" :value="unreadCount > 99 ? '99+' : unreadCount" class="bell-badge" />
+            </button>
+          </template>
+
+          <div class="notice-panel">
+            <div class="notice-head">
+              <span>消息通知</span>
+              <el-button v-if="unreadCount > 0" text size="small" @click="readAll">全部已读</el-button>
+            </div>
+            <el-empty v-if="notices.length === 0" description="暂无消息" :image-size="56" />
+            <div v-else class="notice-list">
+              <div v-for="n in notices" :key="n.id" class="notice-item" :class="{ unread: n.isRead === 0 }"
+                   @click="openNotice(n)">
+                <div class="notice-title">{{ n.title }}</div>
+                <div class="notice-content">{{ n.content }}</div>
+                <div class="notice-time">{{ n.createTime }}</div>
+              </div>
+            </div>
+          </div>
+        </el-popover>
         <router-link to="/cart" class="cart-btn" aria-label="购物车">
           <el-icon :size="20"><ShoppingCart /></el-icon>
           <el-badge v-if="cartStore.count > 0" :value="cartStore.count" class="cart-badge" />
@@ -49,7 +74,7 @@
 </template>
 
 <script setup>
-import { onMounted, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import request from '../utils/request'
 import { useAuthStore } from '../store/auth'
@@ -62,8 +87,59 @@ const router = useRouter()
 const route = useRoute()
 
 // 登录态变化（登录/退出）与路由切换时同步购物车徽标；加购等写操作由 request 拦截器即时刷新
-watch(() => auth.token, () => cartStore.refresh())
-watch(() => route.path, () => cartStore.refresh())
+watch(() => auth.token, () => {
+  cartStore.refresh()
+  loadUnread()
+})
+watch(() => route.path, () => {
+  cartStore.refresh()
+  loadUnread()
+})
+
+// ---- 消息通知（顶栏铃铛）----
+const unreadCount = ref(0)
+const notices = ref([])
+
+async function loadUnread() {
+  if (!auth.token) {
+    unreadCount.value = 0
+    notices.value = []
+    return
+  }
+  try {
+    const res = await request.get('/notifications/unread-count')
+    unreadCount.value = res.data || 0
+  } catch {
+    unreadCount.value = 0
+  }
+}
+
+// 打开面板：拉最新几条并标记全部已读（简单直观，不额外做逐条已读交互）
+async function onOpenNotifications() {
+  try {
+    const res = await request.get('/notifications/latest', { params: { limit: 8 } })
+    notices.value = res.data || []
+    if (unreadCount.value > 0) {
+      await request.post('/notifications/read-all')
+      unreadCount.value = 0
+      notices.value = notices.value.map((n) => ({ ...n, isRead: 1 }))
+    }
+  } catch {
+    notices.value = []
+  }
+}
+
+function openNotice(n) {
+  if (n.bizType === 'ORDER' || n.bizType === 'AFTER_SALE') {
+    router.push('/orders')
+  }
+}
+
+async function readAll() {
+  await request.post('/notifications/read-all')
+  unreadCount.value = 0
+  notices.value = notices.value.map((n) => ({ ...n, isRead: 1 }))
+}
 
 function onLogout() {
   auth.logout()
@@ -72,6 +148,7 @@ function onLogout() {
 
 onMounted(() => {
   cartStore.refresh()
+  loadUnread()
 })
 </script>
 
@@ -214,6 +291,44 @@ onMounted(() => {
   font-size: 10px;
   font-weight: 700;
 }
+
+/* ---- 消息通知 ---- */
+.bell-btn {
+  position: relative;
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border: none; background: transparent;
+  border-radius: 50%;
+  color: var(--color-foreground);
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+}
+.bell-btn:hover { background: #fff; color: var(--color-primary); }
+.bell-badge :deep(.el-badge__content) {
+  background: var(--color-destructive);
+  border: none;
+  font-size: 10px;
+  font-weight: 700;
+}
+.notice-panel { max-height: 400px; overflow-y: auto; }
+.notice-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 8px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600; font-size: 14px;
+}
+.notice-list { display: flex; flex-direction: column; }
+.notice-item { padding: 10px 8px; border-radius: 8px; cursor: pointer; transition: background .15s ease; }
+.notice-item:hover { background: var(--color-muted); }
+.notice-item.unread .notice-title::before {
+  content: ''; display: inline-block;
+  width: 6px; height: 6px; margin-right: 6px;
+  border-radius: 50%; background: var(--color-destructive);
+  vertical-align: middle;
+}
+.notice-title { font-size: 13px; font-weight: 600; color: var(--color-foreground); }
+.notice-content { font-size: 12px; color: var(--color-muted-foreground); margin-top: 3px; line-height: 1.5; }
+.notice-time { font-size: 11px; color: var(--color-muted-foreground); margin-top: 4px; }
 
 @media (max-width: 900px) {
   .nav { display: none; }

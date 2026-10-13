@@ -45,8 +45,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 公开接口
                         .requestMatchers("/api/auth/**", "/api/health", "/uploads/**").permitAll()
-                        // 商品/模板/素材/公告浏览公开（落地页、设计器需游客可访问），下单后才需登录
-                        .requestMatchers(HttpMethod.GET, "/api/templates/**", "/api/materials/**", "/api/notices").permitAll()
+                        // 商品/模板/素材/公告/平台配置/自提门店浏览公开（落地页、设计器需游客可访问），下单后才需登录
+                        .requestMatchers(HttpMethod.GET, "/api/templates/**", "/api/materials/**", "/api/notices",
+                                "/api/config/**", "/api/stores").permitAll()
                         // 商家端接口（后续 change 使用）
                         .requestMatchers("/api/merchant/**").hasAnyRole("MERCHANT", "ADMIN")
                         // 管理端接口（后续 change 使用）

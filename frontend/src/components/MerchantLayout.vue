@@ -18,6 +18,9 @@
         <el-menu-item index="/merchant/orders">
           <el-icon><Tickets /></el-icon><span>订单中心</span>
         </el-menu-item>
+        <el-menu-item index="/merchant/after-sales">
+          <el-icon><RefreshLeft /></el-icon><span>售后管理</span>
+        </el-menu-item>
         <el-menu-item index="/merchant/reviews">
           <el-icon><ChatDotRound /></el-icon><span>评价管理</span>
         </el-menu-item>

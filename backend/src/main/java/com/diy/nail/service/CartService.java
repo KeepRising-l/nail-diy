@@ -52,7 +52,7 @@ public class CartService {
     }
 
     /** 加入购物车：已存在则数量累加 */
-    public void add(Long userId, CartRequest request) {
+    public Long add(Long userId, CartRequest request) {
         Design design = designMapper.selectById(request.getDesignId());
         if (design == null) {
             throw new BusinessException("设计不存在或已删除");
@@ -63,7 +63,7 @@ public class CartService {
         int quantity = request.getQuantity() == null ? 1 : request.getQuantity();
         validateQuantity(quantity);
         if (cartMapper.incrementQuantity(userId, request.getDesignId(), quantity) == 1) {
-            return;
+            return findCartId(userId, request.getDesignId());
         }
         Cart cart = new Cart();
         cart.setUserId(userId);
@@ -71,12 +71,22 @@ public class CartService {
         cart.setQuantity(quantity);
         try {
             cartMapper.insert(cart);
+            return cart.getId();
         } catch (DuplicateKeyException e) {
             // 另一请求可能刚插入同一设计；再次用条件更新完成累加。
             if (cartMapper.incrementQuantity(userId, request.getDesignId(), quantity) != 1) {
                 throw new BusinessException("数量不能大于 " + MAX_QUANTITY);
             }
+            return findCartId(userId, request.getDesignId());
         }
+    }
+
+    /** 取某设计在购物车中的条目 id（累加场景下返回给前端，便于直接改数量/删除） */
+    private Long findCartId(Long userId, Long designId) {
+        Cart existing = cartMapper.selectOne(new LambdaQueryWrapper<Cart>()
+                .eq(Cart::getUserId, userId)
+                .eq(Cart::getDesignId, designId));
+        return existing == null ? null : existing.getId();
     }
 
     /** 修改数量（条目必须属于本人） */

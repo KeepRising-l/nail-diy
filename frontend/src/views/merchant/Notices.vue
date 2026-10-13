@@ -34,7 +34,7 @@
           </template>
         </el-table-column>
         <el-table-column label="更新时间" width="170">
-          <template #default="{ row }">{{ (row.updateTime || '').replace('T', ' ') }}</template>
+          <template #default="{ row }">{{ row.updateTime }}</template>
         </el-table-column>
         <el-table-column label="操作" width="140">
           <template #default="{ row }">

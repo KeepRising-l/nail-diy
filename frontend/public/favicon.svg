@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="NailDIY">
+  <rect width="64" height="64" rx="14" fill="#F5EFE6"/>
+  <path d="M22.5 15.5 C18.5 26 18.5 42.5 24.5 50.5 Q32 56.5 39.5 50.5 C45.5 42.5 45.5 26 41.5 15.5 Q32 10.5 22.5 15.5 Z"
+        fill="#C8813C"/>
+  <path d="M26.5 20 C24.5 28.5 24.5 38.5 27.5 45.5"
+        stroke="#FFFFFF" stroke-width="2.6" fill="none" stroke-linecap="round" opacity="0.55"/>
+  <path d="M37 21.5 C38.5 29 38.5 36 36.5 42"
+        stroke="#FFFFFF" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.3"/>
+</svg>

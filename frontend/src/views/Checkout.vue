@@ -3,7 +3,7 @@
     <el-card v-loading="loading">
       <template #header>
         <div class="card-header">
-          <span>订单结算</span>
+          <h1>订单结算</h1>
           <el-button @click="$router.push('/cart')">返回购物车</el-button>
         </div>
       </template>
@@ -112,10 +112,10 @@ import request from '../utils/request'
 const router = useRouter()
 const provinces = ['北京市', '上海市', '广东省', '浙江省', '江苏省', '山东省', '四川省', '湖北省', '福建省', '河南省']
 
-const FREIGHT_AMOUNT = 8
-const FREE_OVER = 99
-const freightAmount = FREIGHT_AMOUNT
-const freeOver = FREE_OVER
+// 运费规则由后端 /api/config/freight 透出（权威配置在后端 application.yml），
+// 这里的默认值仅在接口异常时兜底，不作为计费依据
+const freightAmount = ref(8)
+const freeOver = ref(99)
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -129,7 +129,7 @@ const showAddressForm = ref(false)
 const addressForm = ref({ receiver: '', phone: '', province: '', city: '', district: '', detail: '' })
 
 const goodsAmount = computed(() => items.value.reduce((s, it) => s + it.price * it.quantity, 0))
-const freight = computed(() => deliveryType.value === 'EXPRESS' && goodsAmount.value < FREE_OVER ? FREIGHT_AMOUNT : 0)
+const freight = computed(() => deliveryType.value === 'EXPRESS' && goodsAmount.value < freeOver.value ? freightAmount.value : 0)
 const totalAmount = computed(() => goodsAmount.value + freight.value)
 
 function onDeliveryChange() {
@@ -157,13 +157,14 @@ async function saveAddress() {
     ElMessage.warning('请完整填写地址信息')
     return
   }
-  await request.post('/addresses', { ...f, isDefault: 0 })
+  const res = await request.post('/addresses', { ...f, isDefault: 0 })
   ElMessage.success('地址已保存')
   showAddressForm.value = false
   addressForm.value = { receiver: '', phone: '', province: '', city: '', district: '', detail: '' }
   const addrRes = await request.get('/addresses')
   addresses.value = addrRes.data
-  addressId.value = addresses.value[0]?.id ?? null
+  // 优先用后端返回的新建 id，避免"取列表首项"在排序变化时选错地址
+  addressId.value = res.data ?? addresses.value[0]?.id ?? null
 }
 
 async function submit() {
@@ -177,19 +178,33 @@ async function submit() {
   }
   submitting.value = true
   try {
-    await request.post('/orders', {
+    const res = await request.post('/orders', {
       deliveryType: deliveryType.value,
       storeId: deliveryType.value === 'SELF_PICKUP' ? storeId.value : null,
       addressId: deliveryType.value === 'EXPRESS' ? addressId.value : null
     })
-    ElMessage.success('订单已创建，请尽快完成支付')
-    router.push('/orders')
+    ElMessage.success('订单已创建，请完成支付')
+    // 带上订单 id，订单页会自动调起支付，避免用户去列表里自己找「去支付」
+    router.push({ path: '/orders', query: res.data ? { pay: res.data } : {} })
   } finally {
     submitting.value = false
   }
 }
 
-onMounted(loadAll)
+async function loadFreightConfig() {
+  try {
+    const res = await request.get('/config/freight')
+    if (res.data) {
+      freightAmount.value = Number(res.data.amount)
+      freeOver.value = Number(res.data.freeOver)
+    }
+  } catch (e) { /* 接口异常时沿用默认值，不阻断结算流程 */ }
+}
+
+onMounted(() => {
+  loadFreightConfig()
+  loadAll()
+})
 </script>
 
 <style scoped>
@@ -197,7 +212,7 @@ onMounted(loadAll)
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .section { margin-bottom: 22px; }
 .section-title { font-weight: 700; margin-bottom: 10px; }
-.thumb { width: 48px; height: 48px; border-radius: 6px; background: #F1EDE9; }
+.thumb { width: 48px; height: 72px; border-radius: 6px; background: #F1EDE9; }
 .thumb-empty { display: flex; align-items: center; justify-content: center; color: #c0c4cc;
                font-size: 11px; border: 1px dashed #e4e7ed; }
 .pick-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }

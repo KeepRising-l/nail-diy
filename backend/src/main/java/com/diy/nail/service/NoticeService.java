@@ -35,13 +35,14 @@ public class NoticeService {
     }
 
     /** 新增公告 */
-    public void create(NoticeRequest request) {
+    public Long create(NoticeRequest request) {
         Notice notice = new Notice();
         notice.setTitle(request.getTitle());
         notice.setContent(request.getContent());
         notice.setIsTop(request.getIsTop() == null ? 0 : request.getIsTop());
         notice.setStatus(request.getStatus() == null ? 1 : request.getStatus());
         noticeMapper.insert(notice);
+        return notice.getId();
     }
 
     /** 编辑公告（含置顶/上下线切换） */

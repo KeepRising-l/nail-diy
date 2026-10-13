@@ -33,7 +33,7 @@ public class AddressService {
     }
 
     /** 新增地址：超上限拦截；设默认则清除其他默认；首条自动默认 */
-    public void create(Long userId, AddressRequest request) {
+    public Long create(Long userId, AddressRequest request) {
         Long count = addressMapper.selectCount(new LambdaQueryWrapper<Address>()
                 .eq(Address::getUserId, userId));
         if (count != null && count >= MAX_ADDRESS_COUNT) {
@@ -48,6 +48,7 @@ public class AddressService {
             clearDefault(userId);
         }
         addressMapper.insert(address);
+        return address.getId();
     }
 
     /** 编辑地址（仅本人） */

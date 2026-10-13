@@ -407,3 +407,50 @@ INSERT INTO `material` (`type`, `name`, `image_url`, `category`, `tags`, `sort`)
 ('PATTERN_IMG', '皇冠',   '/uploads/seed/pat_crown.png',      'SHINE',  '皇冠,华丽', 28),
 ('PATTERN_IMG', '音符',   '/uploads/seed/pat_note.png',       'CUTE',   '音符,音乐', 29),
 ('PATTERN_IMG', '钻石贴', '/uploads/seed/pat_diamond.png',    'SHINE',  '钻石,闪', 30);
+
+-- -------------------------------------------------------------
+-- 14. 售后申请表（顾客对已完成订单发起退款/退货申请，商家审核）
+-- -------------------------------------------------------------
+DROP TABLE IF EXISTS `after_sale`;
+CREATE TABLE `after_sale` (
+    `id`            BIGINT        NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `order_id`      BIGINT        NOT NULL COMMENT '订单ID',
+    `user_id`       BIGINT        NOT NULL COMMENT '申请顾客ID',
+    `type`          VARCHAR(20)   NOT NULL DEFAULT 'REFUND_ONLY' COMMENT '类型：REFUND_ONLY仅退款/RETURN_REFUND退货退款',
+    `reason`        VARCHAR(50)   NOT NULL COMMENT '申请原因分类',
+    `description`   VARCHAR(500)  NOT NULL DEFAULT '' COMMENT '补充说明',
+    `images`        JSON          DEFAULT NULL COMMENT '凭证图（最多3张）',
+    `amount`        DECIMAL(10,2) NOT NULL COMMENT '申请退款金额',
+    `status`        VARCHAR(20)   NOT NULL DEFAULT 'PENDING' COMMENT '状态：PENDING待处理/COMPLETED已退款/REJECTED已拒绝',
+    `reject_reason` VARCHAR(200)  NOT NULL DEFAULT '' COMMENT '商家拒绝原因',
+    `handle_time`   DATETIME      DEFAULT NULL COMMENT '处理时间',
+    `create_time`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`       TINYINT       NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_order` (`order_id`),
+    KEY `idx_user_status` (`user_id`, `status`),
+    KEY `idx_status` (`status`)
+) ENGINE = InnoDB COMMENT ='售后申请表';
+
+-- -------------------------------------------------------------
+-- 15. 消息通知表（订单状态变更、售后审核结果等推送给用户）
+-- -------------------------------------------------------------
+DROP TABLE IF EXISTS `notification`;
+CREATE TABLE `notification` (
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`     BIGINT       NOT NULL COMMENT '接收者ID',
+    `type`        VARCHAR(30)  NOT NULL COMMENT '类型：ORDER订单/AFTER_SALE售后/SYSTEM系统',
+    `title`       VARCHAR(100) NOT NULL COMMENT '标题',
+    `content`     VARCHAR(500) NOT NULL DEFAULT '' COMMENT '内容',
+    `biz_id`      BIGINT       DEFAULT NULL COMMENT '关联业务ID（订单ID/售后ID）',
+    `biz_type`    VARCHAR(30)  NOT NULL DEFAULT '' COMMENT '关联业务类型',
+    `is_read`     TINYINT      NOT NULL DEFAULT 0 COMMENT '是否已读：0未读 1已读',
+    `read_time`   DATETIME     DEFAULT NULL COMMENT '读取时间',
+    `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`     TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_read` (`user_id`, `is_read`),
+    KEY `idx_user_create` (`user_id`, `create_time`)
+) ENGINE = InnoDB COMMENT ='消息通知表';

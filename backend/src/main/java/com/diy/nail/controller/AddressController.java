@@ -41,9 +41,8 @@ public class AddressController {
 
     /** 新增地址（最多 10 条） */
     @PostMapping
-    public Result<Void> create(Authentication authentication, @Valid @RequestBody AddressRequest request) {
-        addressService.create(currentUserId(authentication), request);
-        return Result.ok();
+    public Result<Long> create(Authentication authentication, @Valid @RequestBody AddressRequest request) {
+        return Result.ok(addressService.create(currentUserId(authentication), request));
     }
 
     /** 编辑地址 */

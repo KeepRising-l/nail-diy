@@ -111,30 +111,53 @@ public class DesignService {
                 JSONObject finger = (JSONObject) item;
                 Long shapeId = finger.getLong("shapeId");
                 Long colorId = finger.getLong("colorId");
-                if (shapeId == null && colorId == null) {
+                String colorCode = finger.getStr("colorCode");
+                // 颜色有两种来源：色卡（colorId）或自定义色值（colorCode，设计台的滑条/HEX 输入）
+                boolean hasColor = colorId != null || StrUtil.isNotBlank(colorCode);
+                if (shapeId == null && !hasColor) {
                     continue;
                 }
-                if (shapeId == null || colorId == null) {
-                    throw new BusinessException("每根手指需同时选择甲型和色卡");
+                if (shapeId == null) {
+                    throw new BusinessException("每根手指需选择甲型");
+                }
+                if (!hasColor) {
+                    throw new BusinessException("每根手指需选择颜色（色卡或自定义色值）");
                 }
                 checkMaterial(shapeId, Material.TYPE_SHAPE);
-                checkMaterial(colorId, Material.TYPE_COLOR);
+                if (colorId != null) {
+                    checkMaterial(colorId, Material.TYPE_COLOR);
+                }
+                checkColorCode(colorCode);
                 checkPatterns(finger.getJSONArray("patternIds"));
                 configured++;
             }
             if (configured == 0) {
-                throw new BusinessException("请至少为一根手指选择甲型和色卡");
+                throw new BusinessException("请至少为一根手指选择甲型和颜色");
             }
             return;
         }
         Long shapeId = obj.getLong("shapeId");
         Long colorId = obj.getLong("colorId");
-        if (shapeId == null || colorId == null) {
-            throw new BusinessException("设计参数必须包含甲型（shapeId）和色卡（colorId）");
+        String colorCode = obj.getStr("colorCode");
+        if (shapeId == null) {
+            throw new BusinessException("设计参数必须包含甲型（shapeId）");
+        }
+        if (colorId == null && StrUtil.isBlank(colorCode)) {
+            throw new BusinessException("设计参数必须包含颜色（色卡 colorId 或自定义色值 colorCode）");
         }
         checkMaterial(shapeId, Material.TYPE_SHAPE);
-        checkMaterial(colorId, Material.TYPE_COLOR);
+        if (colorId != null) {
+            checkMaterial(colorId, Material.TYPE_COLOR);
+        }
+        checkColorCode(colorCode);
         checkPatterns(obj.getJSONArray("patternIds"));
+    }
+
+    /** 自定义色值格式校验（#RRGGBB；为空则跳过，表示该手指用色卡取色） */
+    private void checkColorCode(String colorCode) {
+        if (StrUtil.isNotBlank(colorCode) && !colorCode.matches("^#[0-9A-Fa-f]{6}$")) {
+            throw new BusinessException("自定义颜色格式不正确，应为 #RRGGBB");
+        }
     }
 
     /** 贴图 id 列表逐个校验（可为空；接受贴图/贴纸两种类型） */

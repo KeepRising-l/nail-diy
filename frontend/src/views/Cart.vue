@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>购物车</span>
+          <h1>购物车</h1>
           <div>
             <el-button @click="$router.push('/my-designs')">我的设计</el-button>
             <el-button @click="$router.push('/')">首页</el-button>
@@ -104,7 +104,7 @@ onMounted(loadList)
 <style scoped>
 .page { min-height: 100vh; padding: 16px; background: #F5EFE6; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
-.thumb { width: 60px; height: 60px; border-radius: 6px; background: #F1EDE9; }
+.thumb { width: 48px; height: 72px; border-radius: 6px; background: #F1EDE9; }
 .thumb-empty { display: flex; align-items: center; justify-content: center; color: #c0c4cc;
                font-size: 12px; border: 1px dashed #e4e7ed; }
 .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; }

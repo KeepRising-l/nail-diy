@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>地址簿（{{ list.length }}/10）</span>
+          <h1>地址簿（{{ list.length }}/10）</h1>
           <div>
             <el-button @click="$router.push('/orders')">我的订单</el-button>
             <el-button type="primary" @click="openForm(null)">新增地址</el-button>

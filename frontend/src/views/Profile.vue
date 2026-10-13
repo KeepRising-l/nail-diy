@@ -2,7 +2,7 @@
   <div class="page">
     <el-card class="profile-card" v-loading="loading">
       <template #header>
-        <div class="card-header"><span>个人中心</span></div>
+        <div class="card-header"><h1>个人中心</h1></div>
       </template>
 
       <div class="profile-body">

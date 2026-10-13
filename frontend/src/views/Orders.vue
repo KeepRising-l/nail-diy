@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>我的订单</span>
+          <h1>我的订单</h1>
           <el-button @click="$router.push('/addresses')">地址簿</el-button>
         </div>
       </template>
@@ -17,7 +17,12 @@
         <div v-for="o in orders" :key="o.order.id" class="order-card">
           <div class="order-head">
             <span class="order-no">订单号：{{ o.order.orderNo }}</span>
-            <el-tag :type="statusTagType(o.order.status)">{{ statusLabel(o.order.status) }}</el-tag>
+            <span class="head-tags">
+              <el-tag v-if="o.afterSaleStatus" :type="afterSaleTagType(o.afterSaleStatus)" effect="plain">
+                售后 · {{ afterSaleLabel(o.afterSaleStatus) }}
+              </el-tag>
+              <el-tag :type="statusTagType(o.order.status)">{{ statusLabel(o.order.status) }}</el-tag>
+            </span>
           </div>
 
           <div v-for="it in o.items" :key="it.id" class="item-row" @click="openDesignDetail(it)">
@@ -76,6 +81,7 @@
               <el-button v-if="o.order.status === 'PENDING_PAY'" type="primary"
                          @click="confirmPay(o)">立即支付</el-button>
               <el-button v-if="canRebuy(o)" plain @click="buyAgain(o)">再来一副</el-button>
+              <el-button v-if="canAfterSale(o)" plain @click="openAfterSale(o)">申请售后</el-button>
               <el-button v-if="(o.order.status === 'VERIFIED' || o.order.status === 'RECEIVED') && !o.review"
                          type="warning" @click="openReview(o)">评价</el-button>
               <el-popconfirm v-if="o.order.status === 'SHIPPED'" title="确认已收到商品？"
@@ -125,6 +131,43 @@
       </template>
     </el-dialog>
 
+    <!-- 申请售后：类型 + 原因 + 说明 + 凭证图（退款金额由后端按订单实付计算） -->
+    <el-dialog v-model="showAfterSale" title="申请售后" width="480px">
+      <el-alert type="info" :closable="false" class="sale-alert"
+                :title="`退款金额：￥${afterSaleTarget?.order.totalAmount ?? '—'}（按订单实付金额）`" />
+      <el-form label-width="80px">
+        <el-form-item label="售后类型">
+          <el-radio-group v-model="afterSaleForm.type">
+            <el-radio value="REFUND_ONLY">仅退款</el-radio>
+            <el-radio value="RETURN_REFUND">退货退款</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="申请原因">
+          <el-select v-model="afterSaleForm.reason" placeholder="请选择原因" style="width: 100%">
+            <el-option v-for="r in REASONS" :key="r" :label="r" :value="r" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="补充说明">
+          <el-input v-model="afterSaleForm.description" type="textarea" :rows="3" maxlength="500"
+                    show-word-limit placeholder="详细描述遇到的问题（选填）" />
+        </el-form-item>
+        <el-form-item label="凭证图">
+          <el-upload list-type="picture-card" :file-list="[]" :show-file-list="false"
+                     :limit="3" :http-request="uploadAfterSaleImage" accept="image/*">
+            <el-icon><Plus /></el-icon>
+          </el-upload>
+          <div class="upload-tip">最多 3 张，已传 {{ afterSaleForm.images.length }}/3</div>
+        </el-form-item>
+      </el-form>
+      <div v-if="afterSaleForm.images.length" class="review-images">
+        <el-image v-for="(img, i) in afterSaleForm.images" :key="i" :src="img" fit="cover" class="review-img" />
+      </div>
+      <template #footer>
+        <el-button @click="showAfterSale = false">取消</el-button>
+        <el-button type="primary" :loading="applyingSale" @click="submitAfterSale">提交申请</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 设计详情：所见即所得（下单时刻的预览图 + 参数清单） -->
     <el-dialog v-model="showDetail" title="设计详情 · 所见即所得" width="520px">
       <template v-if="detail">
@@ -156,7 +199,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, CircleCheckFilled } from '@element-plus/icons-vue'
 import request from '../utils/request'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const TABS = [
   { label: '全部', value: '' },
@@ -296,10 +339,82 @@ async function submitReview() {
   }
 }
 
-onMounted(loadOrders)
+// ---- 售后申请 ----
+const REASONS = ['尺寸不合适', '色差明显', '做工瑕疵', '运输破损', '与设计不符', '不想要了', '其他原因']
+const AFTER_SALE_MAP = { PENDING: '待商家处理', COMPLETED: '已退款', REJECTED: '已拒绝' }
+const AFTER_SALE_TAG = { PENDING: 'warning', COMPLETED: 'success', REJECTED: 'info' }
+
+const afterSaleLabel = (s) => AFTER_SALE_MAP[s] || s
+const afterSaleTagType = (s) => AFTER_SALE_TAG[s] || 'info'
+
+const showAfterSale = ref(false)
+const applyingSale = ref(false)
+const afterSaleTarget = ref(null)
+const afterSaleForm = reactive({ type: 'REFUND_ONLY', reason: '', description: '', images: [] })
+
+/** 已完成（已核销 / 已签收）且未申请过售后的订单才可申请 */
+function canAfterSale(o) {
+  const done = o.order.status === 'VERIFIED' || o.order.status === 'RECEIVED'
+  return done && !o.afterSaleStatus
+}
+
+function openAfterSale(o) {
+  afterSaleTarget.value = o
+  afterSaleForm.type = 'REFUND_ONLY'
+  afterSaleForm.reason = ''
+  afterSaleForm.description = ''
+  afterSaleForm.images = []
+  showAfterSale.value = true
+}
+
+// 凭证图复用通用的图片上传接口（与晒图同一套规则：jpg/png/webp ≤5MB）
+async function uploadAfterSaleImage(options) {
+  if (afterSaleForm.images.length >= 3) {
+    ElMessage.warning('凭证图最多 3 张')
+    return
+  }
+  const fd = new FormData()
+  fd.append('file', options.file)
+  const res = await request.post('/reviews/images', fd)
+  afterSaleForm.images.push(res.data)
+}
+
+async function submitAfterSale() {
+  if (!afterSaleForm.reason) {
+    ElMessage.warning('请选择申请原因')
+    return
+  }
+  applyingSale.value = true
+  try {
+    await request.post('/after-sales', {
+      orderId: afterSaleTarget.value.order.id,
+      type: afterSaleForm.type,
+      reason: afterSaleForm.reason,
+      description: afterSaleForm.description,
+      images: afterSaleForm.images
+    })
+    ElMessage.success('售后申请已提交，请等待商家处理')
+    showAfterSale.value = false
+    loadOrders()
+  } finally {
+    applyingSale.value = false
+  }
+}
 
 // ---- 设计详情（所见即所得）：点击订单内商品行，展示下单时刻的预览图与参数清单 ----
 const router = useRouter()
+const route = useRoute()
+
+// 从结算页跳来时会带 ?pay=<orderId>，自动引导完成支付（补齐"结算 → 支付"的转化闭环）
+onMounted(async () => {
+  await loadOrders()
+  const payId = Number(route.query.pay)
+  if (!payId) return
+  const target = orders.value.find(o => o.order.id === payId)
+  if (target && target.order.status === 'PENDING_PAY') {
+    payOrder(target)
+  }
+})
 const showDetail = ref(false)
 const detail = ref(null)
 const FINGER_NAMES = ['小指', '无名指', '中指', '食指', '大拇指']
@@ -380,6 +495,8 @@ function buyAgain(o) {
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .order-card { border: 1px solid #e4e7ed; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
 .order-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.head-tags { display: flex; align-items: center; gap: 8px; }
+.sale-alert { margin-bottom: 12px; }
 .order-no { font-size: 13px; color: #8A8177; }
 .item-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer; }
 .item-row:hover { background: #FBF7F0; border-radius: 8px; }
@@ -397,7 +514,7 @@ function buyAgain(o) {
 .df-text { color: #4A4238; }
 .df-pat, .df-extra { width: 100%; padding-left: 50px; font-size: 12px; color: #8A8177; }
 .detail-empty { font-size: 12px; color: #8A8177; text-align: center; }
-.thumb { width: 48px; height: 48px; border-radius: 6px; background: #F1EDE9; flex-shrink: 0; }
+.thumb { width: 48px; height: 72px; border-radius: 6px; background: #F1EDE9; flex-shrink: 0; }
 .thumb-empty { display: flex; align-items: center; justify-content: center; color: #c0c4cc;
                font-size: 11px; border: 1px dashed #e4e7ed; }
 .item-name { font-weight: 600; }

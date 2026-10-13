@@ -74,12 +74,12 @@ public class FileService {
             throw new BusinessException("图片内容无法识别");
         }
         String subDir = DateUtil.format(new Date(), "yyyyMMdd");
-        File dir = FileUtil.file(storageDir, subDir);
+        File dir = new File(storageDir, subDir).getAbsoluteFile();
         if (!dir.exists()) {
             FileUtil.mkdir(dir);
         }
         String fileName = IdUtil.fastSimpleUUID() + "." + ext.toLowerCase();
-        File target = FileUtil.file(dir, fileName);
+        File target = new File(dir, fileName);
         try {
             FileUtil.writeBytes(content, target);
         } catch (Exception e) {
@@ -116,9 +116,9 @@ public class FileService {
     }
 
     private File resolveStoredImage(String rootDir, String relativePath) {
-        File root = FileUtil.file(rootDir).getAbsoluteFile();
+        File root = new File(rootDir).getAbsoluteFile();
         try {
-            File file = FileUtil.file(root, relativePath).getAbsoluteFile();
+            File file = new File(root, relativePath).getAbsoluteFile();
             if (!file.toPath().normalize().startsWith(root.toPath().normalize())) {
                 throw new BusinessException(com.diy.nail.common.ResultCode.FORBIDDEN);
             }

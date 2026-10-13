@@ -80,8 +80,10 @@ import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
+import { useAuthStore } from '../store/auth'
 
 const router = useRouter()
+const auth = useAuthStore()
 const tags = ['', '可爱', '轻奢', '法式', '日系', '简约', '复古', '甜美']
 const query = reactive({ styleTag: '', page: 1, size: 12 })
 const list = ref([])
@@ -106,6 +108,11 @@ async function loadList() {
 }
 
 async function loadFavIds() {
+  // 游客不请求收藏接口：该接口需登录，401 会被 request 拦截器强制跳登录页
+  if (!auth.token) {
+    favIds.value = new Set()
+    return
+  }
   try {
     const res = await request.get('/favorites/ids')
     favIds.value = new Set(res.data || [])
@@ -113,6 +120,11 @@ async function loadFavIds() {
 }
 
 async function toggleFav(t) {
+  if (!auth.token) {
+    ElMessage.warning('请先登录后再收藏')
+    router.push({ path: '/login', query: { redirect: '/templates' } })
+    return
+  }
   try {
     const res = await request.post(`/favorites/${t.id}/toggle`)
     if (res.data) {
@@ -141,6 +153,12 @@ function switchTag(tag) {
 }
 
 function switchFav() {
+  // 收藏列表来自需登录接口，游客先引导登录
+  if (!favMode.value && !auth.token) {
+    ElMessage.warning('请先登录后查看收藏')
+    router.push({ path: '/login', query: { redirect: '/templates' } })
+    return
+  }
   favMode.value = !favMode.value
   query.styleTag = ''
   query.page = 1

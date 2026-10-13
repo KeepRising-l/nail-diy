@@ -13,6 +13,7 @@ dist/
 # 运行时上传文件（保留目录结构）
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend/private-uploads/
 
 # 环境配置（含密钥时不入库）
 *.local

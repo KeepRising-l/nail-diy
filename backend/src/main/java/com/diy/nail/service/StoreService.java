@@ -33,11 +33,12 @@ public class StoreService {
     }
 
     /** 新增门店（默认营业中） */
-    public void create(Store store) {
+    public Long create(Store store) {
         validate(store);
         store.setStatus(store.getStatus() == null ? 1 : store.getStatus());
         store.setSort(store.getSort() == null ? 0 : store.getSort());
         storeMapper.insert(store);
+        return store.getId();
     }
 
     /** 编辑门店（含营业状态切换） */

@@ -36,9 +36,8 @@ public class MerchantStoreController {
 
     /** 新增门店 */
     @PostMapping
-    public Result<Void> create(@RequestBody Store store) {
-        storeService.create(store);
-        return Result.ok();
+    public Result<Long> create(@RequestBody Store store) {
+        return Result.ok(storeService.create(store));
     }
 
     /** 编辑门店 */

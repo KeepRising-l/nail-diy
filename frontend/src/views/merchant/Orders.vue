@@ -258,7 +258,7 @@ onMounted(loadOrders)
 .order-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .order-no { font-size: 13px; color: #8A8177; }
 .item-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; flex-wrap: wrap; }
-.thumb { width: 48px; height: 48px; border-radius: 6px; background: #F1EDE9; flex-shrink: 0; }
+.thumb { width: 48px; height: 72px; border-radius: 6px; background: #F1EDE9; flex-shrink: 0; }
 .thumb-empty { display: flex; align-items: center; justify-content: center; color: #c0c4cc;
                font-size: 11px; border: 1px dashed #e4e7ed; }
 .item-name { font-weight: 600; }

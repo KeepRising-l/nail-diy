@@ -45,7 +45,7 @@ public class MaterialService {
     }
 
     /** 新增素材（按类型做业务校验；同类型下 code 唯一） */
-    public void create(MaterialRequest request) {
+    public Long create(MaterialRequest request) {
         validateByType(request);
         checkCodeUnique(null, request.getType(), request.getCode());
         Material material = new Material();
@@ -54,6 +54,7 @@ public class MaterialService {
         material.setAuditStatus(Material.AUDIT_APPROVED);
         material.setHeat(0);
         materialMapper.insert(material);
+        return material.getId();
     }
 
     /** 编辑素材（含上下架切换） */

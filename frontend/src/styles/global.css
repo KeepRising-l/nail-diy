@@ -151,3 +151,12 @@ img { display: block; max-width: 100%; }
 .el-card__body {
   padding: var(--space-lg) !important;
 }
+
+/* 页面标题：卡片头里的 h1 语义化标题（原先用 span，缺层级），样式与原来保持一致 */
+.card-header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0;
+  color: var(--color-foreground);
+}

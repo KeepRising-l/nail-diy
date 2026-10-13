@@ -11,19 +11,24 @@ import com.diy.nail.common.ResultCode;
 import com.diy.nail.dto.OrderCreateRequest;
 import com.diy.nail.dto.ShipRequest;
 import com.diy.nail.entity.Address;
+import com.diy.nail.entity.AfterSale;
 import com.diy.nail.entity.Cart;
 import com.diy.nail.entity.Design;
 import com.diy.nail.entity.Order;
 import com.diy.nail.entity.OrderItem;
+import com.diy.nail.entity.Notification;
 import com.diy.nail.entity.OrderStatusLog;
 import com.diy.nail.entity.Store;
+import com.diy.nail.entity.User;
 import com.diy.nail.mapper.AddressMapper;
+import com.diy.nail.mapper.AfterSaleMapper;
 import com.diy.nail.mapper.CartMapper;
 import com.diy.nail.mapper.DesignMapper;
 import com.diy.nail.mapper.OrderItemMapper;
 import com.diy.nail.mapper.OrderMapper;
 import com.diy.nail.mapper.OrderStatusLogMapper;
 import com.diy.nail.mapper.StoreMapper;
+import com.diy.nail.mapper.UserMapper;
 import com.diy.nail.vo.OrderVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,7 +58,10 @@ public class OrderService {
     private final DesignMapper designMapper;
     private final StoreMapper storeMapper;
     private final AddressMapper addressMapper;
+    private final AfterSaleMapper afterSaleMapper;
+    private final UserMapper userMapper;
     private final ReviewService reviewService;
+    private final NotificationService notificationService;
 
     /** 邮寄固定运费（配置化，后续可挪到商家后台） */
     @Value("${nail.freight.amount}")
@@ -173,6 +181,24 @@ public class OrderService {
         return order.getId();
     }
 
+    // ------------------- 消息通知（关键节点写入；通知失败不影响主流程） -------------------
+
+    /** 给订单所属顾客发通知 */
+    private void notifyCustomer(Order order, String title, String content) {
+        notificationService.send(order.getUserId(), Notification.TYPE_ORDER, title, content,
+                order.getId(), Notification.BIZ_ORDER);
+    }
+
+    /** 给所有商家发通知（单商家模式下遍历 MERCHANT 角色账号） */
+    private void notifyMerchants(Order order, String title, String content) {
+        List<User> merchants = userMapper.selectList(new LambdaQueryWrapper<User>()
+                .eq(User::getRole, User.ROLE_MERCHANT));
+        for (User merchant : merchants) {
+            notificationService.send(merchant.getId(), Notification.TYPE_ORDER, title, content,
+                    order.getId(), Notification.BIZ_ORDER);
+        }
+    }
+
     /** 模拟支付：待支付 → 待接单 */
     @Transactional(rollbackFor = Exception.class)
     public void pay(Long userId, Long id) {
@@ -183,6 +209,8 @@ public class OrderService {
         transition(order, Order.STATUS_PAID,
                 changes -> changes.setPayTime(LocalDateTime.now()));
         writeLog(order.getId(), Order.STATUS_PENDING_PAY, Order.STATUS_PAID, "顾客", "模拟支付成功");
+        notifyMerchants(order, "有新订单待接单",
+                "订单 " + order.getOrderNo() + " 已支付 ￥" + order.getTotalAmount() + "，请及时接单");
     }
 
     /** 取消订单：仅待支付/待接单可取消 */
@@ -196,6 +224,7 @@ public class OrderService {
         String from = order.getStatus();
         transition(order, Order.STATUS_CANCELLED, update -> {});
         writeLog(order.getId(), from, Order.STATUS_CANCELLED, "顾客", "取消订单");
+        notifyMerchants(order, "顾客取消了订单", "订单 " + order.getOrderNo() + " 已被顾客取消");
     }
 
     // ------------------- 商家端履约（change-07，状态变更均过状态机） -------------------
@@ -219,6 +248,7 @@ public class OrderService {
         String from = order.getStatus();
         transition(order, Order.STATUS_PRODUCING, update -> {});
         writeLog(order.getId(), from, Order.STATUS_PRODUCING, "商家", "接单");
+        notifyCustomer(order, "商家已接单", "订单 " + order.getOrderNo() + " 已接单，正在制作中");
     }
 
     /** 制作完成：自提 → 待自提（生成 6 位自提码）；邮寄 → 待发货 */
@@ -246,6 +276,13 @@ public class OrderService {
         });
         writeLog(order.getId(), from, to, "商家",
                 Order.STATUS_WAIT_PICKUP.equals(to) ? "制作完成，自提码 " + generatedPickupCode : "制作完成，待发货");
+        if (Order.STATUS_WAIT_PICKUP.equals(to)) {
+            notifyCustomer(order, "制作完成，可到店自提",
+                    "订单 " + order.getOrderNo() + " 已制作完成，自提码 " + generatedPickupCode + "，请到店出示核销");
+        } else {
+            notifyCustomer(order, "制作完成，待发货",
+                    "订单 " + order.getOrderNo() + " 已制作完成，商家将尽快发货");
+        }
     }
 
     /** 自提核销：自提码正确 → 已核销（终态） */
@@ -259,6 +296,7 @@ public class OrderService {
         transition(order, Order.STATUS_VERIFIED,
                 changes -> changes.setFinishTime(LocalDateTime.now()));
         writeLog(order.getId(), from, Order.STATUS_VERIFIED, "商家", "自提核销");
+        notifyCustomer(order, "订单已完成", "订单 " + order.getOrderNo() + " 已核销完成，感谢惠顾");
     }
 
     /** 邮寄发货：待发货 → 已发货，记录物流信息 */
@@ -272,6 +310,8 @@ public class OrderService {
         });
         writeLog(order.getId(), from, Order.STATUS_SHIPPED, "商家",
                 "已发货：" + request.getExpressCompany() + " " + request.getExpressNo());
+        notifyCustomer(order, "订单已发货",
+                "订单 " + order.getOrderNo() + " 已发货：" + request.getExpressCompany() + " " + request.getExpressNo());
     }
 
     /** 商家取消订单（仅待支付/待接单阶段，对齐 REQ-FUL-7） */
@@ -281,6 +321,7 @@ public class OrderService {
         String from = order.getStatus();
         transition(order, Order.STATUS_CANCELLED, update -> {});
         writeLog(order.getId(), from, Order.STATUS_CANCELLED, "商家", "商家取消订单");
+        notifyCustomer(order, "订单已取消", "订单 " + order.getOrderNo() + " 已被商家取消");
     }
 
     /** 顾客确认收货：已发货 → 已签收（终态） */
@@ -291,6 +332,7 @@ public class OrderService {
         transition(order, Order.STATUS_RECEIVED,
                 changes -> changes.setFinishTime(LocalDateTime.now()));
         writeLog(order.getId(), from, Order.STATUS_RECEIVED, "顾客", "确认收货");
+        notifyMerchants(order, "顾客已签收", "订单 " + order.getOrderNo() + " 已被顾客确认收货");
     }
 
     /** 运费规则：满额包邮，否则固定运费（纯函数，与状态机同风格集中管理，便于单元测试） */
@@ -335,6 +377,13 @@ public class OrderService {
                 .eq(OrderStatusLog::getOrderId, order.getId())
                 .orderByAsc(OrderStatusLog::getId)));
         vo.setReview(reviewService.getByOrderId(order.getId()));
+        // 售后状态：只取状态列，避免把整条售后单塞进订单列表（前端据此显示按钮与标签）
+        AfterSale sale = afterSaleMapper.selectOne(new LambdaQueryWrapper<AfterSale>()
+                .eq(AfterSale::getOrderId, order.getId())
+                .select(AfterSale::getStatus)
+                .orderByDesc(AfterSale::getId)
+                .last("LIMIT 1"));
+        vo.setAfterSaleStatus(sale == null ? null : sale.getStatus());
         return vo;
     }
 

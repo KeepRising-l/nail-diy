@@ -47,9 +47,8 @@ public class MerchantMaterialController {
 
     /** 新增素材 */
     @PostMapping("/materials")
-    public Result<Void> create(@Valid @RequestBody MaterialRequest request) {
-        materialService.create(request);
-        return Result.ok();
+    public Result<Long> create(@Valid @RequestBody MaterialRequest request) {
+        return Result.ok(materialService.create(request));
     }
 
     /** 编辑素材（含上下架切换） */

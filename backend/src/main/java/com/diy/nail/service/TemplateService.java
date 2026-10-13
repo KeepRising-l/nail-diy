@@ -37,7 +37,7 @@ public class TemplateService {
     }
 
     /** 新增模板 */
-    public void create(TemplateRequest request) {
+    public Long create(TemplateRequest request) {
         validate(request);
         Template template = new Template();
         template.setName(request.getName());
@@ -48,6 +48,7 @@ public class TemplateService {
         template.setSort(request.getSort() == null ? 0 : request.getSort());
         template.setStatus(request.getStatus() == null ? 1 : request.getStatus());
         templateMapper.insert(template);
+        return template.getId();
     }
 
     /** 编辑模板（含上下架切换） */

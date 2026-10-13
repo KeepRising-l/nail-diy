@@ -5,11 +5,12 @@ import { useAuthStore } from '../store/auth'
 // / 开头的页面 = 顾客端；/merchant 开头的页面 = 商家端（后台）
 const routes = [
   { path: '/', name: 'home', component: () => import('../views/Home.vue') },
+  // 灵感库对游客开放：后端 GET /api/templates 本就是公开接口，
+  // 收藏与套用需要登录，由页面内交互自行引导登录
   {
     path: '/templates',
     name: 'templates',
-    component: () => import('../views/Templates.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/Templates.vue')
   },
   {
     path: '/designer',
@@ -77,6 +78,12 @@ const routes = [
     path: '/merchant/orders',
     name: 'merchantOrders',
     component: () => import('../views/merchant/Orders.vue'),
+    meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
+  },
+  {
+    path: '/merchant/after-sales',
+    name: 'merchantAfterSales',
+    component: () => import('../views/merchant/AfterSales.vue'),
     meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
   },
   {

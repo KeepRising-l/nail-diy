@@ -40,9 +40,8 @@ public class MerchantTemplateController {
 
     /** 新增模板 */
     @PostMapping
-    public Result<Void> create(@Valid @RequestBody TemplateRequest request) {
-        templateService.create(request);
-        return Result.ok();
+    public Result<Long> create(@Valid @RequestBody TemplateRequest request) {
+        return Result.ok(templateService.create(request));
     }
 
     /** 编辑模板（含上下架切换） */
