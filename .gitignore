@@ -25,3 +25,6 @@ Workflow/
 # 原始设计素材（半成品/参考图），成品资产放 frontend/public
 素材/
 __pycache__/
+
+# AI 助手本地工作日志（workbuddy 生成，非项目内容）
+.workbuddy-ai/
