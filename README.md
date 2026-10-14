@@ -100,6 +100,6 @@ docs/                           项目文档（PRD / 技术详解 / 答辩手册
 - **运费规则**：后端 `application.yml` 的 `nail.freight.amount / free-over` 为权威配置，前端结算页仅作展示。
 - **设计参数结构**：`{ fingers: [ { shapeId, length, colorId, overlays, patternIds, gradient, catEye, adjust, french, dots, patternStyle, decorations, patternPos } ] }`，与设计台一致，模板与订单项快照共用。
 - **安全**：JWT 无状态认证；商家接口 `/api/merchant/**` 限 MERCHANT/ADMIN；`nail.jwt.secret` 生产环境请务必更换。
-- **单元测试**：`cd backend && mvn test` —— 8 个测试类 / 77 个用例，覆盖订单状态机（全流转表 / 终态封口 / 非法跳转）、运费规则（满额包邮边界）、购物车并发、设计参数校验（色卡与自定义色值两种来源）、售后流程（可申请范围 / 退款金额后端计算 / 并发防护）、文件上传安全（路径穿越 / 伪装图片 / 透明通道）、JWT（过期 / 签名 / 弱密钥）。
+- **单元测试**：`cd backend && mvn test` —— 10 个测试类 / 77 个用例，覆盖订单状态机（全流转表 / 终态封口 / 非法跳转）、运费规则（满额包邮边界）、购物车并发、设计参数校验（色卡与自定义色值两种来源）、售后流程（可申请范围 / 退款金额后端计算 / 并发防护）、文件上传安全（路径穿越 / 伪装图片 / 透明通道）、JWT（过期 / 签名 / 弱密钥）。
 - **移动端适配**：响应式断点 1024 / 768 / 480；顶栏与商家端侧边栏在窄屏改为抽屉菜单；设计台预览区限高，保证下方素材面板可达。
 - **逻辑删除**：核心业务表带 `deleted` 字段，由 MyBatis-Plus `@TableLogic` 统一处理。
