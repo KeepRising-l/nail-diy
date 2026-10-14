@@ -594,12 +594,23 @@ function goRegister() { location.href = '/register' }
   .template-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 768px) {
-  .hero-title { font-size: 46px; }
-  .section-title { font-size: 30px; }
-  .cta-title { font-size: 30px; }
+  /* 标题降档：桌面 60px+ 的 hero 标题在手机上会占满整屏 */
+  .hero-title { font-size: 34px; }
+  .section-title { font-size: 26px; }
+  .cta-title { font-size: 26px; }
+  /* 允许收缩到容器宽度，避免 320px 窄屏溢出 */
+  .hero-copy, .hero-visual { min-width: 0; max-width: 100%; }
   .feature-grid { grid-template-columns: 1fr; }
   .feature-item { border-right: none; border-bottom: 1px solid var(--color-border); padding: var(--space-lg) var(--space-md); }
   .template-grid { grid-template-columns: repeat(2, 1fr); }
   .hero-visual { justify-content: center; }
+}
+
+/* 小屏：款式网格单列，标题再降一档 */
+@media (max-width: 480px) {
+  .hero-title { font-size: 28px; }
+  .section-title { font-size: 22px; }
+  .cta-title { font-size: 22px; }
+  .template-grid { grid-template-columns: 1fr; }
 }
 </style>

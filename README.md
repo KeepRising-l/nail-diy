@@ -19,12 +19,15 @@
 - 可视化设计台：手模实时预览，五指独立编辑（甲型 / 长度 / 色号 / 渐变 / 猫眼 / 法式 / 波点 / 贴花 / 甲面调整），支持上传自定义贴纸（透明底 PNG，审核通过后全员可用），设计快照保存
 - 购物车 → 结算：到店自提（选门店，免运费）或商家邮寄（运费满额包邮）
 - 订单全程状态追踪（待支付 → 待接单 → 制作中 → 待自提/待发货 → 已发货 → 已签收/已核销），自提码核销
+- 售后申请：对已完成订单发起仅退款 / 退货退款（含原因、说明、≤3 张凭证图），可查看处理结果
+- 消息通知：顶栏铃铛入口，订单状态变更与售后审核结果自动提醒，带未读红点
 - 完成后评价晒图、个人中心（昵称 / 头像 / 手机号）
 
 **商家端**（`/merchant`，MERCHANT / ADMIN 角色）
 - 数据看板：今日与累计订单数 / 营业额、待履约订单、平均评分、快捷入口
 - 素材管理（甲型 / 色卡 / 图案 / UGC 贴纸审核）、模板管理（成品设计 + 封面上传）
 - 订单中心：接单 → 制作（完成生成自提码）→ 发货 / 自提码核销
+- 售后管理：查看售后申请（按状态筛选），同意退款或拒绝（拒绝需填原因，会推送给顾客）
 - 评价管理（回复 / 删除违规）、公告管理（发布 / 置顶 / 上下线）
 - 门店管理：自提门店增删改、营业状态切换（停用即时对顾客隐藏）
 - 销售统计：销售趋势、履约方式占比、评价分布、设计偏好 TOP5
@@ -79,14 +82,16 @@ python frontend/scripts/seed-stores.py
 
 ```
 backend/                        Spring Boot 后端
-  src/main/resources/schema.sql 全量建库脚本（表结构 + 素材种子）
-  uploads/                      上传文件目录（头像 / 封面 / 设计快照）
+  src/main/resources/schema.sql 全量建库脚本（15 张表 + 素材种子）
+  uploads/                      公开上传目录（头像 / 封面 / 设计快照 / 素材图）
+  private-uploads/              私有上传目录（待审核 UGC 贴纸，不映射为静态资源）
 frontend/                       Vue 3 前端
+  src/engine/                   参数化渲染引擎（甲型 / 款式 / 效果层 / 钻饰）
   src/views/                    页面（views/merchant/ 为商家端）
-  src/store/                    Pinia（auth / …）
+  src/store/                    Pinia（auth / cart）
   scripts/                      种子脚本（gen-templates / seed-stores / gen-decals）
 design-system/                  视觉设计规范
-docs/                           功能流程文档
+docs/                           项目文档（PRD / 技术详解 / 答辩手册 / 使用文档 / 部署指南等）
 ```
 
 ## 设计说明
@@ -95,5 +100,6 @@ docs/                           功能流程文档
 - **运费规则**：后端 `application.yml` 的 `nail.freight.amount / free-over` 为权威配置，前端结算页仅作展示。
 - **设计参数结构**：`{ fingers: [ { shapeId, length, colorId, overlays, patternIds, gradient, catEye, adjust, french, dots, patternStyle, decorations, patternPos } ] }`，与设计台一致，模板与订单项快照共用。
 - **安全**：JWT 无状态认证；商家接口 `/api/merchant/**` 限 MERCHANT/ADMIN；`nail.jwt.secret` 生产环境请务必更换。
-- **单元测试**：`cd backend && mvn test` 覆盖订单状态机（全流转表/终态封口/非法跳转）与运费规则（满额包邮边界）。
+- **单元测试**：`cd backend && mvn test` —— 8 个测试类 / 77 个用例，覆盖订单状态机（全流转表 / 终态封口 / 非法跳转）、运费规则（满额包邮边界）、购物车并发、设计参数校验（色卡与自定义色值两种来源）、售后流程（可申请范围 / 退款金额后端计算 / 并发防护）、文件上传安全（路径穿越 / 伪装图片 / 透明通道）、JWT（过期 / 签名 / 弱密钥）。
+- **移动端适配**：响应式断点 1024 / 768 / 480；顶栏与商家端侧边栏在窄屏改为抽屉菜单；设计台预览区限高，保证下方素材面板可达。
 - **逻辑删除**：核心业务表带 `deleted` 字段，由 MyBatis-Plus `@TableLogic` 统一处理。

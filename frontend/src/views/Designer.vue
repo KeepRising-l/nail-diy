@@ -2542,4 +2542,29 @@ async function save() {
 .sv-btn:disabled { opacity: 0.6; cursor: default; }
 .saved-link { display: inline-block; margin-top: 12px; font-size: 12px; color: #8A8177; }
 .saved-link:hover { color: var(--color-primary); }
+
+/* ========== 手机端（≤768px）========== */
+@media (max-width: 768px) {
+  /* 预览区：限制高度，避免手模占满整屏（否则下方素材面板要滚很久才够得着） */
+  .preview-wrap {
+    padding: var(--space-md);
+    border-radius: var(--radius-sm);
+  }
+  .preview-stage {
+    min-height: 200px;
+    max-height: 44vh;
+    padding: 10px 6px;
+  }
+  .stage-head { margin-bottom: 8px; }
+
+  /* 工具栏：允许换行并收紧间距，避免按钮溢出 */
+  .stage-toolbar { margin-top: 12px; gap: 8px; }
+  .tools-left, .tools-right { flex-wrap: wrap; gap: 6px; }
+
+  /* 固定四列网格在手机上偏挤，降为三列 */
+  .shape-grid, .overlay-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+}
 </style>

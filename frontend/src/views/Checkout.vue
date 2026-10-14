@@ -227,4 +227,12 @@ onMounted(() => {
 .summary { text-align: right; font-size: 14px; line-height: 24px; }
 .summary-total { font-size: 16px; }
 .amount { color: #e6a23c; font-size: 20px; font-weight: 700; }
+
+/* ========== 手机端 ========== */
+@media (max-width: 768px) {
+  /* 自提点卡片：占满一行（固定 260px 在窄屏会留大片空白） */
+  .pick-item { width: 100%; }
+  /* 金额与合计在手机上左对齐，避免右侧挤压换行 */
+  .summary { text-align: left; }
+}
 </style>

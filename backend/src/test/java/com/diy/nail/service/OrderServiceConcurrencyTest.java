@@ -7,12 +7,14 @@ import com.diy.nail.entity.Design;
 import com.diy.nail.entity.Order;
 import com.diy.nail.entity.Store;
 import com.diy.nail.mapper.AddressMapper;
+import com.diy.nail.mapper.AfterSaleMapper;
 import com.diy.nail.mapper.CartMapper;
 import com.diy.nail.mapper.DesignMapper;
 import com.diy.nail.mapper.OrderItemMapper;
 import com.diy.nail.mapper.OrderMapper;
 import com.diy.nail.mapper.OrderStatusLogMapper;
 import com.diy.nail.mapper.StoreMapper;
+import com.diy.nail.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -42,7 +44,10 @@ class OrderServiceConcurrencyTest {
                 mock(DesignMapper.class),
                 mock(StoreMapper.class),
                 mock(AddressMapper.class),
-                mock(ReviewService.class));
+                mock(AfterSaleMapper.class),
+                mock(UserMapper.class),
+                mock(ReviewService.class),
+                mock(NotificationService.class));
         Order order = new Order();
         order.setId(11L);
         order.setUserId(7L);
@@ -67,7 +72,8 @@ class OrderServiceConcurrencyTest {
         DesignMapper designMapper = mock(DesignMapper.class);
         StoreMapper storeMapper = mock(StoreMapper.class);
         OrderService service = new OrderService(orderMapper, orderItemMapper, logMapper, cartMapper,
-                designMapper, storeMapper, mock(AddressMapper.class), mock(ReviewService.class));
+                designMapper, storeMapper, mock(AddressMapper.class), mock(AfterSaleMapper.class),
+                mock(UserMapper.class), mock(ReviewService.class), mock(NotificationService.class));
         Cart first = cart(21L, 31L);
         Cart second = cart(22L, 32L);
         when(cartMapper.selectList(any())).thenReturn(List.of(first, second));

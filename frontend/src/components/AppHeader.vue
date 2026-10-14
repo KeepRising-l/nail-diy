@@ -68,13 +68,59 @@
           <el-icon :size="20"><ShoppingCart /></el-icon>
           <el-badge v-if="cartStore.count > 0" :value="cartStore.count" class="cart-badge" />
         </router-link>
+
+        <!-- 移动端菜单入口（≤900px 显示，替代被隐藏的顶部导航） -->
+        <button class="menu-btn" aria-label="打开菜单" @click="mobileMenu = true">
+          <el-icon :size="22"><Menu /></el-icon>
+        </button>
       </div>
     </div>
+
+    <!-- 移动端抽屉菜单 -->
+    <el-drawer v-model="mobileMenu" direction="rtl" size="76%" :with-header="false">
+      <div class="m-drawer">
+        <div class="m-user">
+          <el-avatar v-if="auth.token && auth.user?.avatar" :size="40" :src="auth.user.avatar" />
+          <span v-else class="m-avatar-dot"></span>
+          <div class="m-user-text">
+            <div class="m-name">{{ auth.token ? (auth.user?.nickname || '我') : '未登录' }}</div>
+            <div class="m-sub">{{ auth.token ? (auth.user?.phone || '') : '登录后可保存设计、下单' }}</div>
+          </div>
+        </div>
+
+        <nav class="m-nav">
+          <router-link to="/" @click="mobileMenu = false">首页</router-link>
+          <router-link to="/templates" @click="mobileMenu = false">款式灵感库</router-link>
+          <router-link to="/designer" @click="mobileMenu = false">开始设计</router-link>
+          <template v-if="auth.token">
+            <router-link to="/my-designs" @click="mobileMenu = false">我的设计</router-link>
+            <router-link to="/cart" @click="mobileMenu = false">购物车</router-link>
+            <router-link to="/orders" @click="mobileMenu = false">我的订单</router-link>
+            <router-link to="/addresses" @click="mobileMenu = false">地址簿</router-link>
+            <router-link to="/profile" @click="mobileMenu = false">个人中心</router-link>
+          </template>
+          <template v-if="isMerchant">
+            <router-link to="/merchant" @click="mobileMenu = false">商家后台</router-link>
+          </template>
+          <template v-if="isAdmin">
+            <router-link to="/admin/dashboard" @click="mobileMenu = false">平台管理</router-link>
+          </template>
+        </nav>
+
+        <div class="m-actions">
+          <el-button v-if="auth.token" class="m-btn" @click="onLogout">退出登录</el-button>
+          <template v-else>
+            <el-button class="m-btn" @click="go('/login')">登录</el-button>
+            <el-button type="primary" class="m-btn" @click="go('/register')">注册</el-button>
+          </template>
+        </div>
+      </div>
+    </el-drawer>
   </header>
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import request from '../utils/request'
 import { useAuthStore } from '../store/auth'
@@ -85,6 +131,16 @@ const auth = useAuthStore()
 const cartStore = useCartStore()
 const router = useRouter()
 const route = useRoute()
+
+// 移动端抽屉菜单：小屏下顶部导航被隐藏，改由汉堡入口承载
+const mobileMenu = ref(false)
+const isMerchant = computed(() => ['MERCHANT', 'ADMIN'].includes(auth.user?.role))
+const isAdmin = computed(() => auth.user?.role === 'ADMIN')
+
+function go(path) {
+  mobileMenu.value = false
+  router.push(path)
+}
 
 // 登录态变化（登录/退出）与路由切换时同步购物车徽标；加购等写操作由 request 拦截器即时刷新
 watch(() => auth.token, () => {
@@ -330,8 +386,49 @@ onMounted(() => {
 .notice-content { font-size: 12px; color: var(--color-muted-foreground); margin-top: 3px; line-height: 1.5; }
 .notice-time { font-size: 11px; color: var(--color-muted-foreground); margin-top: 4px; }
 
+/* ---- 移动端菜单按钮（桌面隐藏）---- */
+.menu-btn {
+  display: none;
+  width: 40px; height: 40px;
+  align-items: center; justify-content: center;
+  border: none; background: transparent;
+  border-radius: 50%;
+  color: var(--color-foreground);
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+}
+.menu-btn:hover { background: #fff; color: var(--color-primary); }
+
+/* ---- 抽屉内容 ---- */
+.m-drawer { display: flex; flex-direction: column; height: 100%; }
+.m-user {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+.m-avatar-dot {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--color-muted); flex-shrink: 0;
+}
+.m-user-text { min-width: 0; }
+.m-name { font-weight: 600; font-size: 15px; color: var(--color-foreground); }
+.m-sub { font-size: 12px; color: var(--color-muted-foreground); margin-top: 2px; }
+.m-nav { display: flex; flex-direction: column; padding: var(--space-md) 0; flex: 1; overflow-y: auto; }
+.m-nav a {
+  padding: 13px 4px;
+  font-size: 15px;
+  color: var(--color-foreground);
+  border-bottom: 1px solid var(--color-border);
+}
+.m-nav a.router-link-active { color: var(--color-primary); font-weight: 600; }
+.m-actions { display: flex; flex-direction: column; gap: 10px; padding-top: var(--space-md); }
+.m-btn { width: 100%; margin-left: 0 !important; }
+
+/* ---- ≤900px：隐藏顶部导航与用户区，改用汉堡抽屉 ---- */
 @media (max-width: 900px) {
   .nav { display: none; }
   .header-inner { gap: 12px; }
+  .user-chip, .actions > .el-button { display: none; }
+  .menu-btn { display: flex; }
 }
 </style>

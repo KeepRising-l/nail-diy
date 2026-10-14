@@ -101,7 +101,13 @@ public class DesignService {
             throw new BusinessException("设计参数必须是合法的 JSON 对象");
         }
         JSONObject obj = JSONUtil.parseObj(params);
-        JSONArray fingers = obj.getJSONArray("fingers");
+        // 注意：不能直接用 getJSONArray —— 字段存在但类型不是数组时，hutool 会抛 JSONException，
+        // 最终被兜成 500。这里先取原值判断类型，给出明确的 400 提示。
+        Object fingersValue = obj.get("fingers");
+        if (fingersValue != null && !(fingersValue instanceof JSONArray)) {
+            throw new BusinessException("设计参数 fingers 必须是对象数组");
+        }
+        JSONArray fingers = (JSONArray) fingersValue;
         if (fingers != null) {
             int configured = 0;
             for (Object item : fingers) {
@@ -128,7 +134,7 @@ public class DesignService {
                     checkMaterial(colorId, Material.TYPE_COLOR);
                 }
                 checkColorCode(colorCode);
-                checkPatterns(finger.getJSONArray("patternIds"));
+                checkPatterns(arrayOrNull(finger, "patternIds"));
                 configured++;
             }
             if (configured == 0) {
@@ -150,7 +156,18 @@ public class DesignService {
             checkMaterial(colorId, Material.TYPE_COLOR);
         }
         checkColorCode(colorCode);
-        checkPatterns(obj.getJSONArray("patternIds"));
+        checkPatterns(arrayOrNull(obj, "patternIds"));
+    }
+
+    /**
+     * 安全取数组字段：字段不存在、或存在但类型不是数组时返回 null。
+     *
+     * <p>不能直接用 {@code getJSONArray} —— 字段存在但类型不是数组时 hutool 会抛
+     * JSONException，最终被兜成 500 服务器错误；贴图列表属于选填项，不应因此报错。
+     */
+    private JSONArray arrayOrNull(JSONObject obj, String key) {
+        Object value = obj.get(key);
+        return value instanceof JSONArray ? (JSONArray) value : null;
     }
 
     /** 自定义色值格式校验（#RRGGBB；为空则跳过，表示该手指用色卡取色） */
@@ -185,7 +202,7 @@ public class DesignService {
     private java.util.Set<Long> collectMaterialIds(String params) {
         java.util.Set<Long> ids = new java.util.HashSet<>();
         JSONObject obj = JSONUtil.parseObj(params);
-        JSONArray fingers = obj.getJSONArray("fingers");
+        JSONArray fingers = arrayOrNull(obj, "fingers");
         java.util.List<JSONObject> nodes = new java.util.ArrayList<>();
         if (fingers != null) {
             for (Object item : fingers) {
@@ -203,7 +220,7 @@ public class DesignService {
             if (node.getLong("colorId") != null) {
                 ids.add(node.getLong("colorId"));
             }
-            JSONArray patternIds = node.getJSONArray("patternIds");
+            JSONArray patternIds = arrayOrNull(node, "patternIds");
             if (patternIds != null) {
                 for (Object pid : patternIds) {
                     ids.add(Long.valueOf(pid.toString()));
